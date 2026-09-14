@@ -1,1 +1,1 @@
-# -yeedi-vac-max-home-assistant
+# yeedi-vac-max-home-assistant
