@@ -1,7 +1,40 @@
 {
   "config": {
+    "step": {
+      "user": {
+        "title": "Connect your Yeedi account",
+        "description": "Experimental 0.1.0: direct Yeedi login for Vac Max 04z443. Keep using the Yeedi app. Only DE is currently supported. Credentials are stored by Home Assistant; device operation still needs a live test.",
+        "data": {
+          "username": "Yeedi account / email",
+          "password": "Yeedi password",
+          "country": "Country code"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Yeedi rejected the account or password.",
+      "cannot_connect": "Cannot reach Yeedi. Please wait and try again.",
+      "no_devices": "No Yeedi Vac Max (04z443) found in this account.",
+      "unsupported_country": "This experimental version currently supports DE only.",
+      "verification_required": "Yeedi requests additional device verification. This flow is not implemented yet; check the Yeedi app and report the error without credentials.",
+      "unknown": "Unexpected Yeedi API response. See the sanitized Home Assistant logs."
+    },
     "abort": {
-      "backend_not_verified": "Experimental version 0.1.0 cannot connect to or control your Yeedi Vac Max yet. A reliable direct Yeedi backend for class 04z443 is not available in this integration. No credentials are requested or saved and no device is created. See the repository README for research and next steps."
+      "already_configured": "This Yeedi account is already configured.",
+      "reauth_successful": "Yeedi account updated.",
+      "wrong_account": "Please use the same Yeedi account as before."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Battery"
+      }
+    },
+    "binary_sensor": {
+      "online": {
+        "name": "Connection"
+      }
     }
   }
 }

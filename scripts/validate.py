@@ -33,7 +33,7 @@ def main():
     for field in ("documentation", "issue_tracker", "codeowners", "name"):
         assert manifest[field]
     assert documents[ROOT / "hacs.json"]["homeassistant"] == "2026.3.0"
-    assert {p.name for p in (ROOT / "custom_components").iterdir() if p.is_dir()} == {COMPONENT.name}
+    assert {p.name for p in (ROOT / "custom_components").iterdir() if p.is_dir() and p.name != "__pycache__"} == {COMPONENT.name}
     source = documents[COMPONENT / "strings.json"]
     assert documents[COMPONENT / "translations/en.json"] == source
     for language in ("de", "en"):
@@ -43,7 +43,7 @@ def main():
     assert (COMPONENT / "brand/icon.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert (ROOT / "LICENSE").read_text().startswith("MIT License")
     print(f"PASS: {len(python_files)} Python files, {len(documents)} JSON files, structure and translations")
-    print("NOT TESTED: real HA imports/runtime, HACS installation, Yeedi cloud/device")
+    print("Structural checks only; run pytest for HA/protocol tests. Live cloud/device test still required.")
 
 
 if __name__ == "__main__":

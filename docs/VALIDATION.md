@@ -1,18 +1,36 @@
 # Prüfprotokoll — 15. September 2026
 
-## Bestanden
+Aktueller Stand nach Umsetzung des direkten Clients.
 
-- Alle fünf Python-Dateien mit Python 3.12.14 kompiliert (Syntaxprüfung ohne Ausführung).
-- Alle fünf JSON-Dateien geparst, doppelte Schlüssel ausgeschlossen.
-- Domain, Version 0.1.0, HACS-Metadaten, genau ein Integrationsordner und vorhandenes PNG-Projektsymbol geprüft.
-- Englische Übersetzung identisch mit `strings.json`, deutsche und englische Abbruchschlüssel konsistent.
-- `git diff --check` ohne Fehler; bestehende MIT-Lizenz unverändert.
-- Quelltextprüfung: Config Flow beendet Einrichtung mit erklärtem Abbruch; keine Speicherung, Netzwerkanfragen oder Task-Erstellung. Auch manuell eingefügte Config Entries werden abgewiesen.
+## Testumgebung
 
-## Grenzen
+- Python 3.14.7, Home Assistant 2026.9.2, pytest 9.1.1.
+- Isolierte lokale Umgebung; echte HA-Imports, kein Zugriff auf ein reales Yeedi-Konto.
+- Tests verwenden ausdrücklich synthetische Cloud-Antworten; diese sind keine aufgezeichneten Belege des Zielgeräts.
 
-Die lokale Umgebung enthält Python 3.12, kein aktuelles Home Assistant (2026 benötigt eine neuere Python-Laufzeit). Es wurden daher **keine echten HA-Imports oder HA-Laufzeittests** durchgeführt. Verwendete Symbole wurden mit der aktuellen HA-Dokumentation bzw. dem Core-Quelltext abgeglichen. Das ist kein Ersatz für einen Laufzeittest.
+## Geprüft
 
-HACS-Installation, Übersetzungsanzeige, Setup/Unload in einer realen Instanz sowie alle Yeedi-Cloud- und Gerätetests stehen aus. Es wurde weder ein Konto verwendet noch Firmware 1.2.9 getestet. Status-/Fan-Speed-Mappingtests entfallen, weil kein solches Mapping implementiert ist.
+**34 automatisierte Tests bestanden.** Reale HA-Imports sind erfolgreich; ein HA-internes DeprecationWarning bleibt ohne Testfehler.
 
-Reproduzieren: `python scripts/validate.py`. Die HACS-Dateistruktur wurde lokal geprüft, nicht mit dem vollständigen HACS-Validator zertifiziert. Die Grafik lässt sich bei Bedarf mit `python scripts/create_icon.py` (Pillow erforderlich) neu erzeugen; Pillow ist keine Laufzeitabhängigkeit der Integration.
+- Protokollsignatur, Token-Wiederverwendung und konkurrierende Anmeldung.
+- Yeedi-Hosts/App-Organisation, Gerätefilter, Duplikate und fehlende Geräteantworten.
+- Befehlsumschlag, strikte Bestätigung schreibender Befehle, Ablehnung unbekannter Antworten.
+- Status-/Saugleistungsmapping, offline versus Cloudfehler.
+- Begrenzte Transportwiederholung und bereinigte Fehlermeldungen.
+- Config Flow mit echten HA-Klassen, erfolgreiche Einrichtung und Auth-Fehler.
+- Vacuum-, Battery- und Connectivity-Entities, Start/Fortsetzen und Fan-Speed-Befehle.
+- Setup-/Unload-Funktionen mit gemocktem Cloud-/Plattformzugriff.
+- Echter DataUpdateCoordinator: Aktualisierung, Auth-/Cloudfehler und bestätigte/abgelehnte Befehle.
+- Python-Syntax, JSON, Übersetzungsschlüssel und HACS-Dateistruktur.
+- Bestehende MIT-Lizenz unverändert.
+
+## Noch erforderlich
+
+- Installation über HACS in der echten Home-Assistant-Instanz.
+- Login am echten Yeedi-Konto, Firmware 1.2.9 und sämtliche physische Befehle.
+- Langzeitbetrieb und Tokenablauf.
+- Region außerhalb DE ist nicht unterstützt; Verifizierungscode-Ablauf 1013 ist nicht implementiert.
+
+Ein automatischer Test beweist, dass der Code mit den modellierten Antworten arbeitet. Er beweist nicht, dass die Cloud heute exakt diese Antworten liefert.
+
+Reproduzieren: Python 3.14, `pip install -r requirements-test.txt`, `python -m pytest -q`, `python scripts/validate.py`. Home Assistant selbst verursacht derzeit eine DeprecationWarning zur aiohttp-Application-Unterklasse; die Integrationsimporte funktionieren.

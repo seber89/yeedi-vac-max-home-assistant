@@ -1,5 +1,7 @@
 # Recherche und Entscheidung — 15. September 2026
 
+**Historische Vorprüfung.** Die damalige Entscheidung für eine reine Hinweis-Version wurde durch den anschließenden Implementierungsauftrag überholt. Der aktuelle Stand enthält einen eigenen kleinen HTTPS-Client. Siehe [PROTOCOL.md](PROTOCOL.md) und die aktuelle README. Die unten dokumentierten Lücken der Fremdbibliotheken bleiben als Hintergrund erhalten.
+
 ## Ziel
 
 Direkt in Home Assistant mit bestehendem **Yeedi-Konto, DE und Vac Max DVX34/04z443** arbeiten. Keine Ecovacs-Migration. Python-Unterstützung ist nicht grundsätzlich unmöglich; ein vorhandener Fork ist ein konkreter Ansatz. Eine zuverlässig einsetzbare Kombination für das Zielgerät wurde aber nicht gefunden.
