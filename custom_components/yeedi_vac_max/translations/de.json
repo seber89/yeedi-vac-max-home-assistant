@@ -1,0 +1,7 @@
+{
+  "config": {
+    "abort": {
+      "backend_not_verified": "Die experimentelle Version 0.1.0 kann deinen Yeedi Vac Max noch nicht verbinden oder steuern. Eine zuverlässige direkte Yeedi-Anbindung für Klasse 04z443 ist in dieser Integration noch nicht verfügbar. Es werden keine Zugangsdaten abgefragt oder gespeichert und kein Gerät angelegt. Recherche und nächste Schritte stehen in der README des Repositorys."
+    }
+  }
+}

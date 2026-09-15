@@ -1,0 +1,12 @@
+{
+  "domain": "yeedi_vac_max",
+  "name": "Yeedi Vac Max",
+  "codeowners": ["@seber89"],
+  "config_flow": true,
+  "documentation": "https://github.com/seber89/yeedi-vac-max-home-assistant",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/seber89/yeedi-vac-max-home-assistant/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
