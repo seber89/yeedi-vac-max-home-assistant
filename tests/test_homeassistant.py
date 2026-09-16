@@ -53,7 +53,7 @@ async def test_config_flow_auth_failure(hass):
 async def test_entities_and_control_payloads(hass):
     coordinator = SimpleNamespace(hass=hass, last_update_success=True,
         data={"vac": {"online": True, "activity": "paused", "battery": 75, "fan_speed": "Normal"}},
-        execute=AsyncMock(), async_contexts=lambda: [])
+        execute=AsyncMock(), rooms={}, async_contexts=lambda: [])
     robot = Robot("vac", "res", "Vac")
     vacuum = YeediVacuum(coordinator, robot)
     assert vacuum.activity == VacuumActivity.PAUSED

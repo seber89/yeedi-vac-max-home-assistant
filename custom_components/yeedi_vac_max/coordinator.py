@@ -10,7 +10,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .client import (CloudError, InvalidAuth, VerificationRequired, CommandUncertain,
                      DeviceOffline, RateLimited, CommandRejected)
-from .map_data import YeediMap, YeediRoom, RobotPosition, DockPosition
+from .map_data import YeediMap, YeediRoom, RobotPosition, DockPosition, identifier
 
 _LOGGER = logging.getLogger(__name__)
 MAP_INTERVAL = 3600
@@ -47,6 +47,61 @@ class YeediCoordinator(DataUpdateCoordinator):
         self.robots = robots
         self.spatial = {r.did: SpatialState() for r in robots}
         self.commands = {r.did: CommandState() for r in robots}
+        self._observed = {}
+
+    @property
+    def rooms(self):
+        """Read-only view of valid cached rooms, keyed by robot ID."""
+        return {did: tuple(room for room in state.rooms
+                           if identifier(room.room_id) == room.room_id
+                           and "," not in room.room_id)
+                if state.metadata_valid and state.rooms_valid and state.active_map
+                and time.monotonic() < state.next_map_refresh else ()
+                for did, state in self.spatial.items()}
+
+    def _remember(self, robot, snapshot):
+        self._observed[robot.did] = (time.monotonic(), dict(snapshot))
+
+    def _already_done(self, robot, command, data):
+        observed = self._observed.get(robot.did)
+        if not observed or time.monotonic() - observed[0] > 65:
+            return False
+        snapshot = observed[1]
+        if not self.last_update_success or not snapshot.get("online"):
+            return False
+        current = snapshot.get("activity")
+        if command == "charge" and data.get("act") == "go":
+            return current in {"docked", "returning"}
+        if command != "clean" or data.get("type") not in (None, "auto"):
+            return False  # A new room selection must never be skipped as auto-clean.
+        return current in {"start": {"cleaning"}, "resume": {"cleaning"},
+                           "pause": {"paused"}, "stop": {"idle", "docked"}}.get(data.get("act"), set())
+
+    async def _validate_room_command(self, robot, data, expected_map_id):
+        """Validate cached IDs and recheck map identity under the existing lock."""
+        state = self.spatial[robot.did]
+        selected = data.get("content")
+        ids = selected.split(",") if isinstance(selected, str) else []
+        if (not expected_map_id or not state.active_map
+                or state.active_map.map_id != expected_map_id or not ids
+                or not set(ids) <= {room.room_id for room in self.rooms[robot.did]}):
+            raise HomeAssistantError("Room selection unavailable or stale; refresh room mapping")
+        try:
+            async with asyncio.timeout(20):
+                maps = await self.client.maps(robot)
+            active = [item for item in maps if item.active]
+            if len(active) != 1 or active[0].map_id != expected_map_id:
+                state.rooms = ()
+                state.rooms_valid = state.metadata_valid = False
+                state.next_map_refresh = 0
+                await self._spatial_refresh(robot, force=True)
+                self.async_update_listeners()
+                raise HomeAssistantError("Active map changed; select rooms again")
+        except (CloudError, TimeoutError):
+            state.rooms_valid = state.metadata_valid = False
+            state.next_map_refresh = 0
+            self.async_update_listeners()
+            raise HomeAssistantError("Could not verify active map; no room command sent") from None
 
     async def _spatial_refresh(self, robot, *, force=False):
         state = self.spatial[robot.did]
@@ -88,6 +143,7 @@ class YeediCoordinator(DataUpdateCoordinator):
         async with self.commands[robot.did].lock:
             async with asyncio.timeout(60):
                 base = await self.client.snapshot(robot)
+            self._remember(robot, base)
             if base.get("online"):
                 await self._spatial_refresh(robot)
             else:
@@ -121,11 +177,13 @@ class YeediCoordinator(DataUpdateCoordinator):
             async with asyncio.timeout(20):
                 snapshot = await self.client.snapshot(robot)
         except (CloudError, TimeoutError):
+            self._observed.pop(robot.did, None)
             return None
+        self._remember(robot, snapshot)
         self.async_set_updated_data((self.data or {}) | {robot.did: snapshot})
         return snapshot
 
-    async def execute(self, robot, command, data):
+    async def execute(self, robot, command, data, *, expected_map_id=None):
         """Bounded FIFO lock, quiet interval, and duplicate-success coalescing.
 
         Lock covers write, confirmation and refresh. Failures are never retried.
@@ -135,17 +193,22 @@ class YeediCoordinator(DataUpdateCoordinator):
         if state.pending >= MAX_PENDING:
             raise HomeAssistantError("Yeedi busy; too many pending commands")
         data = dict(data)
-        key = (command, tuple(sorted(data.items())))
+        key = (command, tuple(sorted(data.items())), expected_map_id)
         state.pending += 1
         try:
             async with state.lock:
+                if self._already_done(robot, command, data):
+                    return "noop"
                 elapsed = time.monotonic() - state.last_end
+                if command == "clean" and data.get("type") == "spotArea":
+                    await self._validate_room_command(robot, data, expected_map_id)
                 if key == state.last_key and elapsed < COMMAND_GAP and state.last_confirmation:
                     return state.last_confirmation
                 if elapsed < COMMAND_GAP:
                     await asyncio.sleep(COMMAND_GAP - elapsed)
                 state.last_key = None
                 state.last_confirmation = None
+                self._observed.pop(robot.did, None)
                 try:
                     try:
                         # Client bounds each HTTP request, including authentication.
@@ -158,7 +221,12 @@ class YeediCoordinator(DataUpdateCoordinator):
                             raise HomeAssistantError("Yeedi command outcome unknown; check robot before repeating") from None
                         confirmation = "status"
                     if confirmation == "device":
-                        await self._refresh_after_write(robot)
+                        snapshot = await self._refresh_after_write(robot)
+                        expected = self._expected(command, data)
+                        if expected and (not snapshot or snapshot.get("activity") not in expected):
+                            # A device ACK may precede its status transition. Such a
+                            # snapshot must not suppress the next queued command.
+                            self._observed.pop(robot.did, None)
                     state.last_key = key
                     state.last_confirmation = confirmation
                     return confirmation

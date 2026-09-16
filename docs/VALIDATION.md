@@ -1,6 +1,6 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-alpha.1 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-alpha.2 auf feature/rooms-position-map; kein Merge nach main.
 
 ## Testumgebung
 
@@ -10,7 +10,16 @@ Stand 0.2.0-alpha.1 auf feature/rooms-position-map; kein Merge nach main.
 
 ## Geprüft
 
-**70 automatisierte Tests bestanden.** Reale HA-Imports sind erfolgreich; ein HA-internes DeprecationWarning bleibt ohne Testfehler.
+**109 automatisierte Tests bestanden.** Alle 70 Etappe-1-Tests unverändert aktiv;
+39 zusätzliche synthetische Etappe-2-Fälle. Reale HA-Imports erfolgreich;
+ein HA-internes DeprecationWarning bleibt ohne Testfehler.
+
+Neu geprüft: native Segmente/IDs/Namen/CLEAN_AREA, gültiger/leerer/veralteter
+Cache, einzelne/zwei/mehrere Räume, Normalisierung/Duplikate/ungültige Auswahl,
+Kartenwechsel/Map-Check-Fehler/HA-Zuordnung mit wiederverwendeten IDs,
+Queue/Doppelklick/wechselnde Raumaufträge, unklare Antwort und Timeout,
+explizite Ablehnung, alle angeforderten no-op-Zustände, legitime Übergänge
+und veraltete Statuswerte. Raumreinigung am echten Gerät noch unbestätigt.
 
 Etappe 1 ergänzt synthetische Tests für V1-Karten/Räume/Position, unkomprimierte
 Polygone, unbekannte Kompression, mehrdeutige Karten, Cache und Kartenwechsel,
@@ -20,7 +29,7 @@ und docked, unpassender/offline/unbekannter Status, explizite Ablehnung,
 Rate-Limit, Timeout ohne Retry, Fehler vor dem Write, parallele Writes,
 Start/Stop/Dock-Doppelklick, Start–Stop–Start, Lock bis Refresh-Ende,
 begrenzte Queue und Abbruch wartender Aufrufe. Bestehende Vacuum-Funktionen geprüft.
-`python scripts/validate.py`: 17 Python-Dateien, 5 JSON-Dateien bestanden.
+`python scripts/validate.py`: 18 Python-Dateien, 5 JSON-Dateien bestanden.
 
 - Protokollsignatur, Token-Wiederverwendung und konkurrierende Anmeldung.
 - Yeedi-Hosts/App-Organisation, Gerätefilter, Duplikate und fehlende Geräteantworten.

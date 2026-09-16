@@ -1,6 +1,37 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 16. September 2026, 0.2.0-alpha.1. Diese Datei beschreibt die aktuelle Implementierung.
+Stand: 16. September 2026, 0.2.0-alpha.2. Diese Datei beschreibt die aktuelle Implementierung.
+
+## Etappe 2: spotArea und redundante Aktionen
+
+Original implementierter V1-Auftrag an `clean`: act=start, type=spotArea,
+content=kommaseparierte reale Raum-IDs, count=1, donotClean=0, router=plan.
+Protokollreferenz: gepinnte `library/commands/clean.js` (V1 Clean/SpotArea).
+Keine kopierten Klassen/Tests/Fixtures, keine neuen Laufzeitabhängigkeiten.
+Ein oder mehrere Räume, dedupliziert in Auswahlreihenfolge; IDs bleiben Strings.
+Die native HA-API wurde in der lokal installierten Version 2026.9.2 und der
+offiziellen Vacuum-Entity-Dokumentation geprüft; diese ist nun Mindestversion.
+
+`coordinator.rooms` ist nur eine gültigkeitsgefilterte Sicht auf SpatialState,
+kein neuer Cache. Die Entity fragt keine Räume aus der Cloud ab. Unter dem
+bestehenden Command-Lock prüft der Coordinator vor spotArea die aktive Karte.
+Bei geändertem/unklarem Kartenbezug wird nicht geschrieben; alte Räume werden
+invalidiert und über das vorhandene Verfahren neu geladen. Die Karten-ID als
+Segmentgruppe schützt gespeicherte HA-Bereichszuordnungen vor ID-Wiederverwendung.
+Ein externer Kartenwechsel exakt zwischen Prüfung und Write kann vom Protokoll
+ohne atomaren Kartenbezug im clean-Auftrag nicht vollständig ausgeschlossen werden.
+
+Statusbestätigung `cleaning` beweist nur laufende Reinigung, nicht dass die
+angefragten Räume ausgewählt wurden. Raumreinigung ist noch hardwarezuprüfen.
+Kein Retry bei Timeout, kein Überstimmen expliziter Ablehnungen, dieselbe Queue.
+
+Live-Bericht alpha.1: Start/Stop/Return Home/Verbindung/Status/Docked funktionieren.
+Dock-Befehl im bereits angedockten Zustand wird explizit abgelehnt. Deshalb
+no-op bei docked/returning für Dock, paused für Pause, cleaning für Auto-Start/
+Resume, idle/docked für Stop. Prüfung unter dem vorhandenen Lock, nur bei frischem
+Online-Status (max. 65 s) und erfolgreichem Basisupdate. Ein nach ACK noch nicht
+passender Status darf keinen nachfolgenden legitimen Befehl unterdrücken.
+Raumaufträge sind von Auto-Start-no-op ausgenommen. Keine Rohantworten publiziert.
 
 ## Etappe 1: V1-Daten und zwei Arten von Bestätigung
 

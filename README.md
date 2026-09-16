@@ -1,10 +1,45 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-alpha.1 — Etappe 1, experimenteller Feature-Branch. Noch nicht gemergt.**
+**0.2.0-alpha.2 — Etappe 2, Experimental native room cleaning. Noch nicht gemergt.**
 
 Unofficial community integration for Home Assistant.
 Not affiliated with, maintained by, or endorsed by Yeedi,
 Ecovacs or Home Assistant.
+
+## Etappe 2: native Raumreinigung (experimentell)
+
+Räume stammen ausschließlich aus der aktiven Yeedi-Karte. Ein oder mehrere
+Räume lassen sich über die native Home-Assistant-Bereichszuordnung reinigen;
+Auto Clean bleibt unverändert verfügbar. Voraussetzung ist ein gültiger
+Raumcache. Ohne Räume erscheint CLEAN_AREA nicht. Verwendet werden `Segment`,
+`async_get_segments()` und `async_clean_segments()` aus Home Assistant 2026.9.2.
+Die Mindestversion ist deshalb auf die tatsächlich geprüfte Version 2026.9.2
+angehoben. [HA-Schnittstelle](https://developers.home-assistant.io/docs/core/entity/vacuum/).
+
+In Home Assistant die vom Sauger angebotenen Segmente den gewünschten
+HA-Bereichen zuordnen und die native Aktion `vacuum.clean_area` verwenden.
+Mehrere ausgewählte Bereiche werden in einen Raumauftrag zusammengefasst.
+Unbekannte oder leere Auswahlen werden abgelehnt, Duplikate entfernt.
+Es gibt keine zusätzliche Cloud-Raumabfrage in der Vacuum-Entity.
+Vor jedem Raumauftrag überprüft der Coordinator unter seinem bestehenden Lock
+die aktive Karten-ID. Ein Kartenwechsel verwirft die Auswahl und lädt den Cache
+neu. Gleiche Raum-IDs verschiedener Karten werden über die Segmentgruppe
+unterschieden; eine alte HA-Zuordnung muss neu eingerichtet werden.
+
+Raumaufträge verwenden dieselbe Queue, denselben Cooldown und dieselben
+Bestätigungsregeln wie Basisbefehle. `cleaning` nach unklarer Antwort bestätigt
+nur einen laufenden Reinigungsvorgang, **nicht die Auswahl der richtigen Räume**.
+Die Raumreinigung ist noch nicht hardwarevalidiert. Zuerst einen Raum, danach
+zwei und mehrere Räume beaufsichtigt testen und die Auswahl in der Yeedi-App prüfen.
+
+Live bestätigt für alpha.1: Start, Stop, Return Home, Verbindung, Status und
+Docked-Erkennung. Return Home bei bereits angedocktem Gerät wurde von Yeedi
+explizit abgelehnt. Alpha.2 überspringt daher lokal: Dock bei docked/returning,
+Pause bei paused, Start/Resume bei cleaning, Stop bei idle/docked. Das gilt nur
+für einen erfolgreichen, online gemeldeten Status von höchstens 65 Sekunden.
+Unbekannte/alte Zustände und noch nicht vollzogene Zustandswechsel nach einem
+Befehl verwenden die normale Pipeline. Neue Raumaufträge werden nicht durch
+den Auto-Clean-no-op blockiert. Explizite Ablehnungen bleiben Fehler.
 
 ## Etappe 1: robuste Befehle und räumliches Datenfundament
 
@@ -37,8 +72,8 @@ Nur eine eindeutig aktive reale Karte wird ausgewählt. Raum-IDs stammen aus
 Grenzen bleiben `polygon=None`. Bei optionalen Fehlern bleibt Basissteuerung
 erhalten; Cache-Gültigkeitsflags verhindern später die Verwendung alter Räume.
 
-Noch **keine Raumreinigung, CLEAN_AREA, ImageEntity oder SVG-Karte**. Die Daten
-sind intern, nicht als neue Entities sichtbar. Keine räumlichen Daten, Namen,
+Etappe 2 ergänzt CLEAN_AREA; weiterhin **keine ImageEntity oder SVG-Karte**.
+Position und Geometrie bleiben intern. Keine räumlichen Daten, Namen,
 Kennungen oder Rohantworten in Logs/Diagnostics; Diagnostics enthält nur Flags
 und statische Integrationsinformationen. Neue Funktionen noch live zu testen.
 
@@ -74,9 +109,9 @@ Direkte Verbindung zum **bestehenden Yeedi-Konto** in Deutschland. Der Roboter b
 | Region | Deutschland (`DE`); andere Länder werden derzeit ausdrücklich abgelehnt |
 | Firmware | 1.2.9 laut Besitzer, **Live-Test damit noch ausstehend** |
 | Home Assistant | Imports und Tests mit 2026.9.2, Python 3.14.7 |
-| Mindestversion laut HACS | 2026.3.0; nicht separat getestet |
+| Mindestversion laut HACS | 2026.9.2; native Segment-API geprüft |
 
-Firmware wird nicht als angeblich gemessener Wert in die Geräte-Registry eingetragen. Wassermenge, Verbrauchsmaterialien, Reinigungsstatistiken, Raum-/Bereichsreinigung und Kartenvisualisierung sind noch nicht implementiert. Karten-/Raummetadaten und Position sind internes Alpha-Datenfundament.
+Firmware wird nicht als angeblich gemessener Wert in die Geräte-Registry eingetragen. Wassermenge, Verbrauchsmaterialien, Reinigungsstatistiken und Kartenvisualisierung sind noch nicht implementiert. Raumreinigung ist experimentell; Position und Geometrie bleiben internes Datenfundament.
 
 ## Installation über HACS
 
@@ -95,7 +130,7 @@ Das Repository muss dafür zuerst auf GitHub veröffentlicht sein. Eine lokale Z
 
 Der Roboter muss vorher in der Yeedi-App eingerichtet sein. Die Integration legt für jeden passenden Vac Max ein Gerät mit Vacuum-, Akku- und Verbindungseintrag an. Ein offline gemeldeter Roboter kann eingerichtet werden und wird als nicht verfügbar angezeigt.
 
-Installation über HACS wurde für 0.1.0 vom Besitzer bestätigt. Das Repository ist nicht Bestandteil des Standardkatalogs. Auf diesem Feature-Branch ist die Manifest-Version 0.2.0-alpha.1; für den bewussten Alpha-Test gilt die Anleitung oben. main bleibt unverändert.
+Installation und Basissteuerung wurden bis 0.2.0-alpha.1 vom Besitzer bestätigt. Das Repository ist nicht Bestandteil des Standardkatalogs. Auf diesem Feature-Branch ist die Manifest-Version 0.2.0-alpha.2; der Pre-Release dient dem bewussten Hardwaretest. main bleibt unverändert.
 
 ### Manuell aus der ZIP-Datei
 
