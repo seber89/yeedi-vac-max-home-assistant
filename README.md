@@ -1,6 +1,37 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-alpha.2 — Etappe 2, Experimental native room cleaning. Noch nicht gemergt.**
+**0.2.0-alpha.3 — Zwischenschritt 2.5, temporäre Strukturdiagnose / Hardware-Test. Noch nicht gemergt.**
+
+## Alpha 3: Map-/Room-Hardwarediagnose noch offen
+
+Mit Alpha 2 bestätigt der Besitzer: online, Basissteuerung funktionsfähig,
+Dockposition erkannt; keine aktive Karte, ungültige Metadaten/Räume und keine
+Roboterposition. Die Ursache und die reale Map-Antwortstruktur sind damit
+**noch nicht bestimmt**. Alpha 3 ist eine Diagnoseversion, kein behaupteter Map-Fix.
+Map-/Room-Parser und Anfrageparameter bleiben bis zu einem Strukturbeleg unverändert.
+
+Nach Installation von Alpha 3 Home Assistant neu starten oder die Integration
+neu laden (dadurch erfolgt die Map-Abfrage ohne das stündliche Cache-Intervall).
+Anschließend unter Geräte & Dienste bei der Integration die Diagnose herunterladen
+und den Abschnitt `structure_probe` für die weitere Analyse bereitstellen.
+**Keine Rohantworten, Debug-Traces oder Zugangsdaten senden.** Ein Vergleich im
+angedockten Zustand und während einer ohnehin gewünschten Reinigung ist hilfreich;
+die Diagnose selbst startet keine Reinigung.
+
+`structure_probe` enthält pro Roboter in derselben Reihenfolge wie `robots` nur
+die letzte Abfrage je festem Befehl. Erfasst werden bekannte Feldnamen, JSON-Typen,
+Anzahlen und feste Ergebniskategorien; keine IDs, Namen, Koordinaten oder unbekannten
+Feldnamen/Werte. Es gibt keine Diagnose-Logs, Dateien, zusätzlichen Cloudaufrufe
+oder automatische Übermittlung. Die Daten liegen bis Reload im Speicher.
+Diese temporäre Probe soll nach der Hardwareanalyse wieder entfernt werden.
+
+`command_success` bedeutet nur, dass die bestehende Prüfung der **Leseantwort**
+bestanden wurde, nicht dass Map-Parsing oder Hardwarevalidierung erfolgreich sind.
+`attempted: false` bedeutet nicht abgefragt: Ohne aktive Karte bleiben insbesondere
+`getMapSet` und `getMapSubSet` aus. Deren Untersuchung benötigt gegebenenfalls einen
+zweiten Hardwaretest nach der belegten Map-Korrektur. Fehlendes `deebotPos` ist
+zulässig; eine vorhandene Dockposition bleibt nutzbar. Basissteuerung und
+Schreibvalidierung bleiben unverändert.
 
 Unofficial community integration for Home Assistant.
 Not affiliated with, maintained by, or endorsed by Yeedi,

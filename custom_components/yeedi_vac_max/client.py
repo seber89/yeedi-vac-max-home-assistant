@@ -6,6 +6,7 @@ This original implementation uses no code or runtime from a third-party fork.
 from __future__ import annotations
 
 import asyncio
+from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
 import json
@@ -18,6 +19,7 @@ from uuid import uuid4
 import aiohttp
 
 from .const import TARGET_CLASS_ID
+from .structure_diagnostics import COMMANDS, response_structure
 from .map_data import (YeediMap, YeediRoom, RobotPosition, DockPosition,
                        identifier, position, polygon, fallback_name)
 
@@ -161,6 +163,7 @@ class YeediClient:
         self.expires = 0.0
         self._auth_lock = asyncio.Lock()
         self._requests = asyncio.Semaphore(3)
+        self._structure = {}
 
     async def _request(self, method: str, url: str, *, retry: bool = False, **kwargs) -> dict:
         """Bound requests; no retries for writes or login, no raw exception logging."""
@@ -277,6 +280,37 @@ class YeediClient:
 
     async def command(self, robot: Robot, name: str, data: dict | list | None = None,
                       *, writing: bool = False) -> dict:
+        """Capture only safe structure of the four optional read commands."""
+        probe = None
+        if not writing and name in COMMANDS:
+            probe = {"attempted": True, "command_success": False,
+                     "response_received": False, "outcome": "pending"}
+            self._structure.setdefault(robot.did, {})[name] = probe
+        try:
+            result = await self._command(robot, name, data, writing=writing, probe=probe)
+        except asyncio.CancelledError:
+            if probe is not None:
+                probe["outcome"] = "cancelled_or_budget_expired"
+            raise
+        except CloudError as err:
+            if probe is not None:
+                probe["outcome"] = next((label for cls, label in (
+                    (DeviceOffline, "offline"), (CommandRejected, "rejected"),
+                    (RateLimited, "busy"), (CommandTimeout, "timeout"),
+                    (InvalidAuth, "authentication"), (VerificationRequired, "authentication"),
+                    (CommandUncertain, "unclear"), (CannotConnect, "transport"))
+                    if isinstance(err, cls)), "cloud_error")
+            raise
+        if probe is not None:
+            probe.update(command_success=True, outcome="accepted_read")
+        return result
+
+    def structure_diagnostics(self, robot: Robot) -> dict:
+        """No IDs in output; a copy prevents diagnostic consumers modifying state."""
+        recorded = self._structure.get(robot.did, {})
+        return {name: deepcopy(recorded.get(name, {"attempted": False})) for name in COMMANDS}
+
+    async def _command(self, robot: Robot, name: str, data=None, *, writing=False, probe=None):
         try:
             await self.authenticate()
         except (CommandUncertain, CannotConnect):
@@ -291,6 +325,8 @@ class YeediClient:
                   "payload": {"header": {"pri": "1", "ts": int(time.time()*1000),
                                          "tzm": 480, "ver": "0.0.50"},
                               "body": {"data": data or {}}}})
+        if probe is not None:
+            probe.update(response_structure(response))
         return command_body(response, writing=writing)
 
     async def _device_request(self, writing, *args, **kwargs):
@@ -394,3 +430,4 @@ class YeediClient:
         """Clear memory only; the shared aiohttp session belongs to HA."""
         self.token = self.password = ""
         self.expires = 0
+        self._structure.clear()

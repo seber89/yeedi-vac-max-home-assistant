@@ -1,6 +1,27 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-alpha.2 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-alpha.3 auf feature/rooms-position-map; kein Merge nach main.
+
+## Zwischenschritt 2.5
+
+129 Tests bestanden: alle 109 bisherigen Fälle und 20 neue synthetische
+Strukturdiagnose-/Datenschutzfälle. `python scripts/validate.py`: PASS,
+20 Python-Dateien, 5 JSON-Dateien. `python -m pytest -q`: 129 passed,
+eine unveränderte externe Home-Assistant/aiohttp-Deprecation-Warnung.
+
+Neue Fälle: JSON-/Objekt-Umschläge, feste Antwortebenen ohne Parser-Fallback,
+Typvarianten von using, unbekannte Schlüssel und sensible Sentinel-Werte,
+Diagnoseexport ohne IDs/Namen/Koordinaten, Kopie und Löschen beim Entladen,
+Offline/Busy/Transport/Timeout/Reject, Budget-Abbruch, begrenzte Listeninspektion,
+fehlende Roboterposition bei vorhandener Dockposition, keine Probe von Writes.
+Der Mock des Clients erhielt die neue synchrone Diagnosemethode;
+bestehende Testassertionen wurden nicht entfernt oder abgeschwächt.
+
+Kein Zugriff auf echte Cloudantworten. Der Besitzer meldet Basissteuerung und
+Dockposition mit Alpha 2 als funktionierend, aber fehlende Map-/Room-Erkennung.
+Die reale Map-/Room-Struktur und Ursache sind noch offen; Alpha 3 erfasst die
+dafür benötigte Struktur beim nächsten Hardwarelauf. Keine Hardwarevalidierung
+oder Parserkorrektur behauptet. MIT/THIRD_PARTY_NOTICES unverändert.
 
 ## Testumgebung
 
@@ -10,7 +31,7 @@ Stand 0.2.0-alpha.2 auf feature/rooms-position-map; kein Merge nach main.
 
 ## Geprüft
 
-**109 automatisierte Tests bestanden.** Alle 70 Etappe-1-Tests unverändert aktiv;
+**Alpha-2-Stand: 109 automatisierte Tests bestanden.** Alle 70 Etappe-1-Tests unverändert aktiv;
 39 zusätzliche synthetische Etappe-2-Fälle. Reale HA-Imports erfolgreich;
 ein HA-internes DeprecationWarning bleibt ohne Testfehler.
 

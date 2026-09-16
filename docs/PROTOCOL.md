@@ -88,6 +88,42 @@ Live-Befund des Besitzers: 0.1.0 über HACS installiert, Basisbefehle funktionie
 gelegentlich unklare Quittierung trotz physischer Ausführung. Die neue Alpha,
 Karten/Positionsdaten und Langzeitbetrieb sind noch nicht live bestätigt.
 
+## Alpha 3: Strukturdiagnose, kein unbewiesener Parser-Fix
+
+Live-Befund des Besitzers mit Alpha 2: online/Basissteuerung funktionieren,
+Dockposition vorhanden, aktive Karte/Metadaten/Räume/Roboterposition fehlen.
+Das belegt weder die Lage von `info` noch den Datentyp von `using`.
+`metadata_valid=false` kann durch Cloudfehler, Zeitbudget oder Parserfehler entstehen;
+es beweist nicht, dass keine Karte gespeichert ist. Die Ursache bleibt offen.
+
+Die temporäre Alpha-3-Probe erfasst ausschließlich Struktur an festen Ebenen:
+Portalantwort, `resp`, `resp.data`, `resp.body`, `resp.body.data`.
+Ein JSON-String in `resp` wird für die Strukturprüfung dekodiert wie im bestehenden
+Antwortparser. Keine rekursive Suche durch unbekannte Felder, keine Rohlogs.
+Bekannte Feldnamen werden allowlisted; Werte werden nie übernommen. Typen von
+`using`, `mid`, `msid`, `mssid`, Positionen und Kompression sowie Listenanzahlen
+werden beschrieben. Ein active-candidate-Zähler beschreibt nur das bisher erwartete
+`using=1`/`"1"` mit nichtleerer/nonzero Map-ID; andere Darstellungen werden nicht
+als aktive Karte geraten. Bei mehr als 100 Einträgen ist die Inspektion als
+abgeschnitten markiert. Mehrdeutige Karten bleiben nicht auswählbar.
+
+Auch abgelehnte/unklare Antwortumschläge werden vor der unveränderten Validierung
+strukturell erfasst. Transport, Offline, Timeout, Busy, Authentifizierung und
+Abbruch des äußeren Zeitbudgets werden nur als feste Kategorien gespeichert.
+Keine Ausnahme-Texte, Codes, IDs oder benutzerdefinierten Schlüssel werden exportiert.
+Nicht aufgerufene Befehle bleiben ausdrücklich `attempted=false`.
+
+`getMapSet` bleibt `{mid, type: "ar"}`; `getMapSubSet` bleibt `{mid, type: "ar", mssid}`.
+Ob zusätzliche Parameter wie `msid` tatsächlich nötig sind, ist ohne neue
+Hardwarebelege nicht entscheidbar. Keine geratenen Parameter oder Fallback-Pfade
+ergänzt, keine Referenzimplementierung kopiert. Fehlende Roboterposition bei
+vorhandener Dockposition ist schon jetzt zulässig. Die neuen Tests prüfen die
+Diagnose mit synthetischen Varianten; sie sind keine realen Map-Fixtures.
+
+Nach dem Hardwarelauf zunächst `getCachedMapInfo` auswerten; nur anhand des
+Strukturbelegs korrigieren. Danach können MapSet/SubSet mit real ermittelten IDs
+abgefragt und erneut strukturell geprüft werden. Raumreinigung bleibt unvalidiert.
+
 ## Warum ein kleiner eingebauter Client?
 
 Der reguläre Python-Client bietet in der geprüften Version keinen Yeedi-Login. Der S20-Fork ergänzt ihn, benötigt aber Python/Rust-Paketbau und verwendet denselben Paketnamen wie die HA-Ecovacs-Abhängigkeit. Das `04z443`-Profil fehlt dort. Für die kleine Auswahl an HTTPS-Befehlen wird deshalb ein eigener asynchroner Client ohne zusätzliche Laufzeitabhängigkeit verwendet. Home Assistants vorhandenes aiohttp übernimmt HTTP. Der gesamte MQTT-, Karten- und Fork-Paketbau entfällt für diese erste Polling-Implementierung.
