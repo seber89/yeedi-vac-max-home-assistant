@@ -62,6 +62,14 @@ async def test_entities_and_control_payloads(hass):
     coordinator.execute.assert_awaited_with(robot, "clean", {"act": "resume"})
     await vacuum.async_return_to_base()
     coordinator.execute.assert_awaited_with(robot, "charge", {"act": "go"})
+    await vacuum.async_pause()
+    coordinator.execute.assert_awaited_with(robot, "clean", {"act": "pause"})
+    await vacuum.async_stop()
+    coordinator.execute.assert_awaited_with(robot, "clean", {"act": "stop"})
+    coordinator.data["vac"]["activity"] = "idle"
+    await vacuum.async_start()
+    coordinator.execute.assert_awaited_with(robot, "clean", {
+        "act": "start", "type": "auto", "count": 1, "donotClean": 0, "router": "plan"})
     await vacuum.async_set_fan_speed("Max")
     coordinator.execute.assert_awaited_with(robot, "setSpeed", {"speed": 1})
     with pytest.raises(HomeAssistantError):

@@ -1,6 +1,61 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 15. September 2026. Diese Datei beschreibt die **aktuelle Implementierung**, nicht die vorherige reine Hinweis-Vorstufe.
+Stand: 16. September 2026, 0.2.0-alpha.1. Diese Datei beschreibt die aktuelle Implementierung.
+
+## Etappe 1: V1-Daten und zwei Arten von Bestätigung
+
+Zielprofil laut Auftrag und Referenz: DVX34 / 04z443 / K781, DE,
+950type=true, 950type_V2=false. Keine V2-Befehle und keine Feature-Erfindungen.
+Zusätzliche Faktenquelle im oben gepinnten JavaScript-Projekt:
+`library/commands/map.js`, `library/managers/mapManager.js`,
+`library/managers/botState.js`, `library/mapInfo.js`.
+Nur Protokollinformationen wurden verwendet, keine Parser/Renderer portiert.
+
+| Befehl | Anfrage / gelesene Felder |
+| --- | --- |
+| getCachedMapInfo | data.info mit mid/name/using; mid=0 ignorieren |
+| getMapSet | mid der aktiven Karte, type=ar; subsets[].mssid |
+| getMapSubSet | mid, type=ar, mssid; reale name/subtype/value/compress |
+| getPos | data-Anfrage [chargePos, deebotPos]; deebotPos-Objekt, chargePos-Liste, x/y/a/invalid |
+
+Aktive Karte nur bei genau einem using=1. Keine Karte/Mehrdeutigkeit ergibt None.
+IDs werden nie erfunden. Fehlende Details behalten die reale Raum-ID und einen
+Fallback-Namen. connections/index/cleanset werden noch nicht benötigt und nicht
+interpretiert. Komprimierte Werte bleiben unbekannt. Unkomprimierte V1-Grenzen
+verwenden `x,y;x,y;...`; der unabhängige begrenzte Parser akzeptiert außerdem
+explizite JSON-Punktpaare, ohne deren Lieferung vom Zielgerät zu behaupten.
+Ungültige Werte/NaN/Infinity werden verworfen. Mehrere Dockpositionen sind
+mehrdeutig und ergeben None. Modelle bleiben in Originalkoordinaten im Speicher.
+
+**Direkte Bestätigung:** Portal ret=ok und Geräte-body.code=0. Fehlender Code
+ist weiterhin keine Gerätebestätigung. Nichtnull-Code/ret=fail bleibt Ablehnung.
+Offline-Codes 4200/500 bleiben Offline/keine Antwort; HTTP 429 bleibt Rate-Limit.
+Es werden keine unbekannten Busy-Codes geraten.
+
+**Statusbestätigung:** Nur nach unklarer Antwort oder Transportproblem nach dem
+Anmeldeversuch wird ein neuer Basis-Snapshot gelesen. Online und Aktivität
+müssen exakt zum Befehl passen: start/resume=cleaning, pause=paused, stop=idle,
+charge/go=returning oder docked. Dies ist Beobachtung, keine direkte Quittierung
+und kein Kausalitätsbeweis. Keine Bestätigung aus dem alten Coordinator-Cache.
+Explizite Ablehnung wird niemals durch Status überstimmt. Fehlender/abweichender
+Status bleibt unklar. Schreiben wird unter keinen Umständen automatisch wiederholt.
+
+Der Coordinator gibt intern `device` oder `status` zurück. Je Roboter deckt
+ein FIFO-Lock Schreiben und Refresh ab; maximal vier Aufrufe, sonst Busy.
+Identischer bestätigter Befehl innerhalb 1,5 Sekunden wird zusammengefasst,
+andere Befehle warten diese Ruhezeit ab. Abgebrochene/fehlgeschlagene Befehle
+werden nicht als erfolgreicher Debounce-Kandidat gespeichert.
+
+SpatialState ist vom Basis-Snapshot getrennt. 60-Sekunden-Polling für Position,
+stündlicher Metadaten-/Raumcache mit explizitem Refresh-Hook. Reload initialisiert
+neu. Optionale Zeitbudgets: Position 8 Sekunden, Karten/Räume insgesamt 20 Sekunden;
+Basis-Snapshot 60 Sekunden, Bestätigungs-Snapshot 20 Sekunden. Nach optionalen
+Fehlern gelten Cache-Flags als ungültig; spätere Raumsteuerung muss sie prüfen.
+Keine Rohantworten oder räumlichen Daten veröffentlichen, loggen oder diagnostizieren.
+
+Live-Befund des Besitzers: 0.1.0 über HACS installiert, Basisbefehle funktionieren,
+gelegentlich unklare Quittierung trotz physischer Ausführung. Die neue Alpha,
+Karten/Positionsdaten und Langzeitbetrieb sind noch nicht live bestätigt.
 
 ## Warum ein kleiner eingebauter Client?
 
@@ -45,10 +100,10 @@ Der JavaScript-Snapshot ordnet `04z443` dem Yeedi-Profil und der nicht-V2-JSON-K
 
 Das aktuelle Modell erbt `vacuumBase`: Quiet=1000, Normal=0, Max=1 laut Wörterbuch. Max+ wird nicht angeboten. Diese Werte müssen trotzdem am Zielgerät getestet werden.
 
-Portalantwort und Geräteantwort werden getrennt geprüft. Eine erfolgreiche HTTP-Antwort allein reicht nicht. Steuerung benötigt die Gerätebestätigung code=0; fehlende Bestätigungen und Fehler werden gemeldet. Status wird anschließend frisch gelesen, nie aus dem abgesendeten Befehl erfunden. Offline/Timeout-Codes 4200 und 500 stammen aus der Referenzimplementierung.
+Portalantwort und Geräteantwort werden getrennt geprüft. Eine erfolgreiche HTTP-Antwort allein reicht nicht. Direkte Bestätigung benötigt code=0; nur für unklare Ausgänge gilt alternativ die oben beschriebene Statusbestätigung. Status wird frisch gelesen, nie aus dem abgesendeten Befehl erfunden. Offline/Timeout-Codes 4200 und 500 stammen aus der Referenzimplementierung.
 
 ## Begrenzung und Datenschutz
 
 15 Sekunden je Anfrage, ein Wiederholungsversuch nur bei geeigneten lesenden Transportfehlern, keine unmittelbare Wiederholung nach Rate-Limit. Koordinator und Einrichtung sind zusätzlich zeitlich begrenzt. Keine Weiterleitung von Auth-Anfragen auf andere Hosts (Redirects deaktiviert). Cloud-Ausnahmen werden durch neutrale Meldungen ersetzt. Polling und Steuerung werden serialisiert; mehrere Geräte teilen eine Authentifizierung.
 
-Live unbestätigt bleiben insbesondere: aktuelle Erreichbarkeit der Loginhosts, Verträglichkeit des Portalpfads mit dem konkreten Konto, Befehlsantworten auf Firmware 1.2.9, Tokenablauf nach mehreren Tagen. Fehlschläge sollen anhand bereinigter Codes korrigiert werden, nicht durch blindes Probieren anderer Herstellerkonten.
+Login und Basissteuerung von 0.1.0 sind laut Besitzer funktionsfähig. Live unbestätigt bleiben neue Raum-/Positionsantworten, neue Bestätigungslogik und Tokenablauf nach mehreren Tagen. Fehlschläge sollen anhand bereinigter Kategorien korrigiert werden, nicht durch blindes Probieren anderer Herstellerkonten.

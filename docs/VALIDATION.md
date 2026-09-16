@@ -1,6 +1,6 @@
-# Prüfprotokoll — 15. September 2026
+# Prüfprotokoll — 16. September 2026
 
-Aktueller Stand nach Umsetzung des direkten Clients.
+Stand 0.2.0-alpha.1 auf feature/rooms-position-map; kein Merge nach main.
 
 ## Testumgebung
 
@@ -10,7 +10,17 @@ Aktueller Stand nach Umsetzung des direkten Clients.
 
 ## Geprüft
 
-**34 automatisierte Tests bestanden.** Reale HA-Imports sind erfolgreich; ein HA-internes DeprecationWarning bleibt ohne Testfehler.
+**70 automatisierte Tests bestanden.** Reale HA-Imports sind erfolgreich; ein HA-internes DeprecationWarning bleibt ohne Testfehler.
+
+Etappe 1 ergänzt synthetische Tests für V1-Karten/Räume/Position, unkomprimierte
+Polygone, unbekannte Kompression, mehrdeutige Karten, Cache und Kartenwechsel,
+optionale Fehlerisolation und Privacy-Allowlist. Befehlsfälle: direkt bestätigter
+Start, unklarer Start/Resume/Pause/Stop/Dock mit passendem Status, Dock returning
+und docked, unpassender/offline/unbekannter Status, explizite Ablehnung,
+Rate-Limit, Timeout ohne Retry, Fehler vor dem Write, parallele Writes,
+Start/Stop/Dock-Doppelklick, Start–Stop–Start, Lock bis Refresh-Ende,
+begrenzte Queue und Abbruch wartender Aufrufe. Bestehende Vacuum-Funktionen geprüft.
+`python scripts/validate.py`: 17 Python-Dateien, 5 JSON-Dateien bestanden.
 
 - Protokollsignatur, Token-Wiederverwendung und konkurrierende Anmeldung.
 - Yeedi-Hosts/App-Organisation, Gerätefilter, Duplikate und fehlende Geräteantworten.
@@ -26,8 +36,10 @@ Aktueller Stand nach Umsetzung des direkten Clients.
 
 ## Noch erforderlich
 
-- Installation über HACS in der echten Home-Assistant-Instanz.
-- Login am echten Yeedi-Konto, Firmware 1.2.9 und sämtliche physische Befehle.
+- Neue Alpha am echten DVX34: Karte, Räume, Position und neue Bestätigungslogik.
+- Installation und Basissteuerung von 0.1.0 wurden vom Besitzer bestätigt;
+  dennoch gelegentliche Fehlermeldung trotz ausgeführtem Befehl. Daraus keine
+  Live-Bestätigung für die neuen Alpha-Funktionen ableiten.
 - Langzeitbetrieb und Tokenablauf.
 - Region außerhalb DE ist nicht unterstützt; Verifizierungscode-Ablauf 1013 ist nicht implementiert.
 

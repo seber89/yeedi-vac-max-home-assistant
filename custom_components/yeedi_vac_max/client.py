@@ -18,6 +18,8 @@ from uuid import uuid4
 import aiohttp
 
 from .const import TARGET_CLASS_ID
+from .map_data import (YeediMap, YeediRoom, RobotPosition, DockPosition,
+                       identifier, position, polygon, fallback_name)
 
 # Public Yeedi application signing identifiers, NOT user credentials.
 # Provenance: ecovacs-deebot.js constants.js, pinned in docs/PROTOCOL.md.
@@ -58,6 +60,14 @@ class CommandRejected(CloudError):
     """Device rejected a command."""
 
 
+class CommandUncertain(CloudError):
+    """No reliable acknowledgement; do not repeat the write."""
+
+
+class CommandTimeout(CommandUncertain, CannotConnect):
+    """Request timed out with unknown device-side outcome."""
+
+
 def md5(value: str) -> str:
     """MD5 is mandated by the cloud protocol, not used for local password storage."""
     return hashlib.md5(value.encode(), usedforsecurity=False).hexdigest()
@@ -87,20 +97,24 @@ def command_body(response: dict, *, writing: bool = False) -> dict:
     error = numeric_code(response.get("errno"))
     if error in {"4200", "500"}:
         raise DeviceOffline("Device offline or response timed out")
+    if response.get("ret") == "fail":
+        raise CommandRejected(f"Portal rejected command (code {error})")
     if response.get("ret") != "ok":
-        raise CloudError(f"Portal rejected command (code {error})")
+        raise CommandUncertain("Portal acknowledgement missing")
     payload = response.get("resp")
     if isinstance(payload, str):
         try:
             payload = json.loads(payload)
         except (ValueError, TypeError):
-            raise CloudError("Invalid device response") from None
-    body = object_value(object_value(payload).get("body"))
+            raise CommandUncertain("Invalid device response") from None
+    if not isinstance(payload, dict) or not isinstance(payload.get("body"), dict):
+        raise CommandUncertain("Device response structure missing")
+    body = payload["body"]
     code = body.get("code")
     if code is not None and str(code) != "0":
         raise CommandRejected(f"Device rejected command (code {numeric_code(code)})")
     if writing and code is None:
-        raise CloudError("Device acknowledgement missing")
+        raise CommandUncertain("Device acknowledgement missing")
     return body
 
 
@@ -167,16 +181,23 @@ class YeediClient:
                         if response.status != 200:
                             raise CloudError("Unexpected HTTP response")
                         result = await response.json(content_type=None)
+                        if not isinstance(result, dict):
+                            raise CommandUncertain("Invalid cloud response structure")
                         return object_value(result)
             except RateLimited:
                 raise
-            except (aiohttp.ClientError, TimeoutError, CannotConnect):
+            except TimeoutError:
+                if attempt == 0 and retry:
+                    await asyncio.sleep(1)
+                    continue
+                raise CommandTimeout("Cloud request timed out; outcome unknown") from None
+            except (aiohttp.ClientError, CannotConnect):
                 if attempt == 0 and retry:
                     await asyncio.sleep(1)
                     continue
                 raise CannotConnect("Cannot reach Yeedi cloud") from None
             except (ValueError, TypeError):
-                raise CloudError("Invalid JSON from cloud") from None
+                raise CommandUncertain("Invalid JSON from cloud") from None
         raise CannotConnect("Cannot reach Yeedi cloud")
 
     @staticmethod
@@ -254,10 +275,14 @@ class YeediClient:
                 devices[did] = Robot(did, resource, str(item.get("nick") or "Yeedi Vac Max"))
         return list(devices.values())
 
-    async def command(self, robot: Robot, name: str, data: dict | None = None,
+    async def command(self, robot: Robot, name: str, data: dict | list | None = None,
                       *, writing: bool = False) -> dict:
-        await self.authenticate()
-        response = await self._request(
+        try:
+            await self.authenticate()
+        except (CommandUncertain, CannotConnect):
+            # No device write has been attempted; status cannot confirm a login.
+            raise CannotConnect("Authentication transport failed before command") from None
+        response = await self._device_request(writing,
             "POST", PORTAL + "iot/devmanager.do", retry=not writing,
             params={"cv": "1.94.76", "t": "a", "av": "1.3.0", "mid": TARGET_CLASS_ID,
                     "did": robot.did, "td": "q", "u": self.user_id},
@@ -267,6 +292,74 @@ class YeediClient:
                                          "tzm": 480, "ver": "0.0.50"},
                               "body": {"data": data or {}}}})
         return command_body(response, writing=writing)
+
+    async def _device_request(self, writing, *args, **kwargs):
+        try:
+            return await self._request(*args, **kwargs)
+        except (RateLimited, CommandTimeout):
+            raise
+        except CannotConnect:
+            if writing:
+                raise CommandUncertain("Device request transport outcome unknown") from None
+            raise
+
+    async def maps(self, robot: Robot) -> tuple[YeediMap, ...]:
+        body = await self.command(robot, "getCachedMapInfo")
+        info = object_value(body.get("data")).get("info")
+        if not isinstance(info, list) or len(info) > 100:
+            raise CloudError("Invalid map metadata")
+        result = {}
+        for item in info:
+            if not isinstance(item, dict):
+                continue
+            mid = identifier(item.get("mid"))
+            if mid is None or mid == "0":
+                continue
+            if mid in result:
+                raise CloudError("Ambiguous map metadata")
+            name = item.get("name")
+            result[mid] = YeediMap(mid, name if isinstance(name, str) else None,
+                                   item.get("using") in (1, "1"))
+        return tuple(result.values())
+
+    async def rooms(self, robot: Robot, map_id: str) -> tuple[YeediRoom, ...]:
+        body = await self.command(robot, "getMapSet", {"mid": map_id, "type": "ar"})
+        data = object_value(body.get("data"))
+        if "mid" in data and identifier(data["mid"]) != map_id:
+            raise CloudError("Map response mismatch")
+        subsets = data.get("subsets")
+        if not isinstance(subsets, list) or len(subsets) > 100:
+            raise CloudError("Invalid room list")
+        rooms = {}
+        for item in subsets:
+            if not isinstance(item, dict):
+                continue
+            rid = identifier(item.get("mssid"))
+            if rid is None or rid in rooms:
+                continue
+            detail = item
+            if "value" not in item or not item.get("name"):
+                try:
+                    response = await self.command(robot, "getMapSubSet", {
+                        "mid": map_id, "type": "ar", "mssid": rid})
+                    candidate = object_value(response.get("data"))
+                    if (identifier(candidate.get("mssid")) == rid
+                            and identifier(candidate.get("mid", map_id)) == map_id):
+                        detail = item | candidate
+                except (CloudError, TimeoutError):
+                    pass
+            name = detail.get("name")
+            rooms[rid] = YeediRoom(
+                rid, name.strip() if isinstance(name, str) and name.strip() else fallback_name(len(rooms)),
+                identifier(detail.get("subtype")), polygon(detail.get("value"), detail.get("compress")))
+        return tuple(rooms.values())
+
+    async def positions(self, robot: Robot) -> tuple[RobotPosition | None, DockPosition | None]:
+        body = await self.command(robot, "getPos", ["chargePos", "deebotPos"])
+        data = object_value(body.get("data"))
+        dock = data.get("chargePos")
+        dock = dock[0] if isinstance(dock, list) and len(dock) == 1 else None
+        return position(data.get("deebotPos"), RobotPosition), position(dock, DockPosition)
 
     async def snapshot(self, robot: Robot) -> dict:
         results = {}

@@ -1,6 +1,54 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.1.0 — Experimental / initial test release. Implementiert und automatisch getestet; Live-Test am DVX34 steht aus.**
+**0.2.0-alpha.1 — Etappe 1, experimenteller Feature-Branch. Noch nicht gemergt.**
+
+Unofficial community integration for Home Assistant.
+Not affiliated with, maintained by, or endorsed by Yeedi,
+Ecovacs or Home Assistant.
+
+## Etappe 1: robuste Befehle und räumliches Datenfundament
+
+Der Besitzer hat HACS-Installation und Basissteuerung mit 0.1.0 bestätigt.
+Trotz ausgeführtem Start/Stop/Dock trat gelegentlich eine Bestätigungsfehlermeldung
+auf, besonders bei schnellen Klickfolgen. Die genaue Ursache ist nicht belegt.
+
+- Pro Roboter begrenzte FIFO-Warteschlange: maximal vier laufende/wartende Aufrufe.
+  Der Lock umfasst Schreiben und anschließende Statusprüfung.
+- 1,5 Sekunden Ruhezeit zwischen abgeschlossenen Befehlen. Ein identischer,
+  gerade bestätigter Befehl wird in diesem Zeitraum zusammengefasst.
+  Start → Stop → Start bleibt in dieser Reihenfolge. Überfüllung meldet Busy.
+- Keine automatischen Schreibwiederholungen. Ablehnung, Offline und HTTP 429
+  bleiben Fehler. Bei unklarer Antwort oder Timeout wird einmal neu gelesen:
+  Start/Resume → cleaning, Pause → paused, Stop → idle, Dock → returning/docked.
+  Nur ein online gemeldetes Gerät im passenden Zustand gilt als statusbestätigt.
+  Dies ist **keine direkte Gerätequittierung** und kein kausaler Nachweis, wenn
+  der Roboter schon vorher im Zielzustand war. Ohne passenden Zustand bleibt
+  der Ausgang unklar. Saugleistung erhält keine solche Aktivitätsbestätigung.
+- Ein fehlgeschlagener Bestätigungs-Refresh macht die Integration nicht allein
+  deshalb unavailable. Vor erneutem manuellem Senden den Roboter prüfen.
+
+`map_data.py` enthält unveränderliche Modelle; `client.py` liest das V1-Protokoll;
+`coordinator.py` hält Basisstatus, SpatialState und CommandState je Roboter.
+Basisstatus und Position: ungefähr alle 60 Sekunden. Karte/Räume: erster
+Online-Poll nach Setup/Reload, danach stündlich oder gezielt über den internen
+Hook `async_refresh_map_data(robot)` (noch kein HA-Service).
+Nur eine eindeutig aktive reale Karte wird ausgewählt. Raum-IDs stammen aus
+`mssid`; Namen bleiben erhalten, sonst Raum A/B/C. Unbekannte/komprimierte
+Grenzen bleiben `polygon=None`. Bei optionalen Fehlern bleibt Basissteuerung
+erhalten; Cache-Gültigkeitsflags verhindern später die Verwendung alter Räume.
+
+Noch **keine Raumreinigung, CLEAN_AREA, ImageEntity oder SVG-Karte**. Die Daten
+sind intern, nicht als neue Entities sichtbar. Keine räumlichen Daten, Namen,
+Kennungen oder Rohantworten in Logs/Diagnostics; Diagnostics enthält nur Flags
+und statische Integrationsinformationen. Neue Funktionen noch live zu testen.
+
+### Alpha testen und zurückwechseln
+
+Nur `feature/rooms-position-map` enthält diese Alpha. `main` bleibt bei 0.1.0.
+Für einen bewussten manuellen Test den Feature-Branch als ZIP herunterladen,
+den bestehenden Integrationsordner sichern, `custom_components/yeedi_vac_max`
+ersetzen und Home Assistant neu starten. Für Rollback den gesicherten Ordner
+wiederherstellen und neu starten. [Quellenhinweise](THIRD_PARTY_NOTICES.md).
 
 Direkte Verbindung zum **bestehenden Yeedi-Konto** in Deutschland. Der Roboter bleibt in der Yeedi-App. Die Integration läuft in Home Assistant und benötigt weder Node.js noch Node-RED, n8n, einen zusätzlichen Container oder einen separaten Dienst.
 
@@ -28,7 +76,7 @@ Direkte Verbindung zum **bestehenden Yeedi-Konto** in Deutschland. Der Roboter b
 | Home Assistant | Imports und Tests mit 2026.9.2, Python 3.14.7 |
 | Mindestversion laut HACS | 2026.3.0; nicht separat getestet |
 
-Firmware wird nicht als angeblich gemessener Wert in die Geräte-Registry eingetragen. Wassermenge, Verbrauchsmaterialien, Reinigungsstatistiken, Karten, Räume und Bereiche sind noch nicht implementiert.
+Firmware wird nicht als angeblich gemessener Wert in die Geräte-Registry eingetragen. Wassermenge, Verbrauchsmaterialien, Reinigungsstatistiken, Raum-/Bereichsreinigung und Kartenvisualisierung sind noch nicht implementiert. Karten-/Raummetadaten und Position sind internes Alpha-Datenfundament.
 
 ## Installation über HACS
 
@@ -47,7 +95,7 @@ Das Repository muss dafür zuerst auf GitHub veröffentlicht sein. Eine lokale Z
 
 Der Roboter muss vorher in der Yeedi-App eingerichtet sein. Die Integration legt für jeden passenden Vac Max ein Gerät mit Vacuum-, Akku- und Verbindungseintrag an. Ein offline gemeldeter Roboter kann eingerichtet werden und wird als nicht verfügbar angezeigt.
 
-HACS-Struktur ist lokal geprüft; eine vollständige Installation über HACS muss noch getestet werden. Das Repository ist nicht Bestandteil des Standardkatalogs. Die Manifest-Version ist 0.1.0; vom Standardbranch kann ohne GitHub-Release installiert werden.
+Installation über HACS wurde für 0.1.0 vom Besitzer bestätigt. Das Repository ist nicht Bestandteil des Standardkatalogs. Auf diesem Feature-Branch ist die Manifest-Version 0.2.0-alpha.1; für den bewussten Alpha-Test gilt die Anleitung oben. main bleibt unverändert.
 
 ### Manuell aus der ZIP-Datei
 

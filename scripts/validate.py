@@ -27,7 +27,7 @@ def main():
     }
     manifest = documents[COMPONENT / "manifest.json"]
     assert manifest["domain"] == COMPONENT.name
-    assert manifest["version"] == "0.1.0"
+    assert manifest["version"] == "0.2.0-alpha.1"
     assert manifest["config_flow"] is True
     assert manifest["requirements"] == []
     for field in ("documentation", "issue_tracker", "codeowners", "name"):
