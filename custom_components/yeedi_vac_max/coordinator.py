@@ -33,6 +33,11 @@ class SpatialState:
     rooms_valid: bool = False
     next_map_refresh: float = 0
 
+    @property
+    def room_generation(self):
+        """Local structural identity only; never included in diagnostics."""
+        return tuple(sorted({room.room_id for room in self.rooms}))
+
 
 @dataclass
 class CommandState:
@@ -81,15 +86,17 @@ class YeediCoordinator(DataUpdateCoordinator):
         return current in {"start": {"cleaning"}, "resume": {"cleaning"},
                            "pause": {"paused"}, "stop": {"idle", "docked"}}.get(data.get("act"), set())
 
-    async def _validate_room_command(self, robot, data, expected_map_id):
+    async def _validate_room_command(self, robot, data, expected_map_id, expected_generation):
         """Validate cached IDs and recheck map identity under the existing lock."""
         state = self.spatial[robot.did]
         selected = data.get("content")
         ids = selected.split(",") if isinstance(selected, str) else []
         if (not expected_map_id or not state.active_map
                 or state.active_map.map_id != expected_map_id or not ids
+                or state.room_generation != expected_generation
                 or not set(ids) <= {room.room_id for room in self.rooms[robot.did]}):
             raise HomeAssistantError("Room selection unavailable or stale; refresh room mapping")
+        map_verified = False
         try:
             async with asyncio.timeout(MAP_DISCOVERY_TIMEOUT):
                 maps = await self.client.maps(robot)
@@ -101,8 +108,23 @@ class YeediCoordinator(DataUpdateCoordinator):
                 await self._spatial_refresh(robot, force=True)
                 self.async_update_listeners()
                 raise HomeAssistantError("Active map changed; select rooms again")
+            map_verified = True
+            # A map can keep its ID while its room partition changes. Check it
+            # under the same write lock, rather than trusting the hourly cache.
+            async with asyncio.timeout(ROOM_REFRESH_TIMEOUT):
+                rooms = await self.client.rooms(robot, expected_map_id)
+            state.rooms = rooms
+            state.rooms_valid = True
+            state.next_map_refresh = time.monotonic() + MAP_INTERVAL
+            self.async_update_listeners()
+            if (state.room_generation != expected_generation
+                    or not set(ids) <= {room.room_id for room in self.rooms[robot.did]}):
+                raise HomeAssistantError("Room mapping changed; configure area mapping again")
         except (CloudError, TimeoutError):
-            state.rooms_valid = state.metadata_valid = False
+            state.rooms_valid = False
+            state.rooms = ()
+            if not map_verified:
+                state.metadata_valid = False
             state.next_map_refresh = time.monotonic() + MAP_ERROR_BACKOFF
             self.async_update_listeners()
             raise HomeAssistantError("Could not verify active map; no room command sent") from None
@@ -118,6 +140,7 @@ class YeediCoordinator(DataUpdateCoordinator):
             return
         state.metadata_valid = False
         state.rooms_valid = False
+        self.async_update_listeners()
         try:
             async with asyncio.timeout(MAP_DISCOVERY_TIMEOUT):
                 maps = await self.client.maps(robot)
@@ -127,6 +150,7 @@ class YeediCoordinator(DataUpdateCoordinator):
                 state.rooms = ()
             state.maps, state.active_map = maps, selected
             state.metadata_valid = True
+            self.async_update_listeners()
             if selected is None:
                 state.rooms = ()
                 state.next_map_refresh = time.monotonic() + MAP_INTERVAL
@@ -191,7 +215,7 @@ class YeediCoordinator(DataUpdateCoordinator):
         self.async_set_updated_data((self.data or {}) | {robot.did: snapshot})
         return snapshot
 
-    async def execute(self, robot, command, data, *, expected_map_id=None):
+    async def execute(self, robot, command, data, *, expected_map_id=None, expected_generation=None):
         """Bounded FIFO lock, quiet interval, and duplicate-success coalescing.
 
         Lock covers write, confirmation and refresh. Failures are never retried.
@@ -201,19 +225,22 @@ class YeediCoordinator(DataUpdateCoordinator):
         if state.pending >= MAX_PENDING:
             raise HomeAssistantError("Yeedi busy; too many pending commands")
         data = dict(data)
-        key = (command, tuple(sorted(data.items())), expected_map_id)
+        if expected_generation is None:
+            expected_generation = self.spatial[robot.did].room_generation
+        key = (command, tuple(sorted(data.items())), expected_map_id,
+               expected_generation if data.get("type") == "spotArea" else None)
         state.pending += 1
         try:
             async with state.lock:
                 if self._already_done(robot, command, data):
                     return "noop"
                 elapsed = time.monotonic() - state.last_end
+                if elapsed < COMMAND_GAP and not (key == state.last_key and state.last_confirmation):
+                    await asyncio.sleep(COMMAND_GAP - elapsed)
                 if command == "clean" and data.get("type") == "spotArea":
-                    await self._validate_room_command(robot, data, expected_map_id)
+                    await self._validate_room_command(robot, data, expected_map_id, expected_generation)
                 if key == state.last_key and elapsed < COMMAND_GAP and state.last_confirmation:
                     return state.last_confirmation
-                if elapsed < COMMAND_GAP:
-                    await asyncio.sleep(COMMAND_GAP - elapsed)
                 state.last_key = None
                 state.last_confirmation = None
                 self._observed.pop(robot.did, None)

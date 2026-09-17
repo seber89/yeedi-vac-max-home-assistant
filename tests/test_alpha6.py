@@ -112,15 +112,15 @@ async def test_room_failure_keeps_map_but_exposes_no_rooms(coordinator):
 
 
 async def test_room_preflight_uses_same_legacy_discovery(coordinator):
-    c = client()
+    c = client(room={"subsets":[{"mssid":"3", "name":"Synthetic", "value":"opaque"}]})
     coordinator.client = c
     state = coordinator.spatial["vac"]
     state.active_map = YeediMap("PRIVATE_MAP", None, True)
     state.metadata_valid = state.rooms_valid = True
     state.rooms = (YeediRoom("3", "Synthetic"),)
     state.next_map_refresh = time.monotonic() + 3600
-    await coordinator._validate_room_command(coordinator.robots[0], {"content":"3"}, "PRIVATE_MAP")
-    assert c._request.await_count == 3
+    await coordinator._validate_room_command(coordinator.robots[0], {"content":"3"}, "PRIVATE_MAP", state.room_generation)
+    assert c._request.await_count == 4  # Also revalidate the current room generation.
 
 
 async def test_room_retry_completes_beyond_old_outer_budget(coordinator, monkeypatch):

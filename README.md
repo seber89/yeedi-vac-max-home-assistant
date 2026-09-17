@@ -1,6 +1,66 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-alpha.6 — Funktionaler Legacy-Map-Fallback / Hardware-Test. Noch nicht gemergt.**
+**0.2.0-beta.1 — Experimental / Beta / Hardware-Test. Noch nicht gemergt.**
+
+## Beta 1: lokale Kartenansicht und sichere Raumzuordnung
+
+Der Besitzer hat mit Alpha 6 die Legacy-Map-Erkennung und native Segmentreinigung
+auf dem echten Vac Max bestätigt. GetMapSet liefert zunächst mssid-Einträge;
+der bestehende reguläre GetMapSubSet-Ablauf liefert Raumdetails mit value als String.
+Die **Darstellbarkeit dieser echten Strings als Polygone ist noch nicht bestätigt**.
+Der unveränderte eigenständige Parser akzeptiert ausschließlich unkomprimierte
+V1-Punktlisten oder explizite JSON-Paare. Keine neuen Decoder, keine Rasterkarte.
+
+Pro Roboter kommt eine Image-Entity **Map** hinzu. Sie zeichnet gültige Raumpolygone
+mit Namen sowie vorhandene Roboter-/Dockpositionen als lokale SVG-Karte.
+Fehlende Marker verhindern die Karte nicht. Ohne gültige Geometrie oder bei
+ungültigen/veralteten Map-/Room-Daten ist die Entity **nicht verfügbar**; ein altes
+Bild wird auch beim direkten Bildabruf nicht als aktuelle Karte ausgeliefert.
+Die Image-Entity fragt niemals die Cloud ab. Der SVG-Cache liegt nur im Speicher.
+Keine offiziellen Logos, Fremdbilder oder externen Ressourcen.
+
+Beispiel für die Standard-[Picture-Entity-Karte](https://www.home-assistant.io/dashboards/picture-entity/)
+(Entity-ID durch die eigene Map-Entity ersetzen):
+
+```yaml
+type: picture-entity
+entity: image.robbi_map
+show_name: true
+show_state: false
+fit_mode: contain
+```
+
+Die öffentliche [ImageEntity-API](https://developers.home-assistant.io/docs/core/entity/image/)
+wurde gegen Home Assistant 2026.9.2 geprüft. Es ist keine Custom-Dashboardkarte nötig.
+Raumreinigung für einen oder mehrere Räume bleibt separat über die nativen
+HA-Bereichszuordnungen verfügbar; die Bildkarte selbst ist keine Raum-Auswahlsteuerung.
+
+Die Integration folgt genau der aktuell von Yeedi gemeldeten Major-Map,
+ohne parallele Etagenauswahl. Kartenwechsel und geänderte Raum-IDs werden beim
+nächsten erfolgreichen räumlichen Refresh automatisch übernommen. Der Erfolgscache
+bleibt eine Stunde gültig; Fehler verwenden weiterhin drei Minuten Backoff.
+Vor **jedem Raumauftrag** werden unter dem bestehenden Lock zusätzlich Map und
+Raumstruktur frisch geprüft. Das kann insbesondere beim Legacy-Pfad dauern.
+Bei Änderungen zwischen Auswahl und Ausführung wird **kein Schreibbefehl** gesendet.
+HA meldet geänderte Segmente; die Bereiche müssen gegebenenfalls neu zugeordnet werden.
+Keine automatische Zuordnung anhand von Lage oder Reihenfolge. Identische Room-IDs
+in anderer Antwortreihenfolge ändern die lokale strukturelle Generation nicht.
+
+Reload/Neustart beginnen ohne räumlichen Cache. Nach vollständiger Neukopplung
+kann eine neue Yeedi-Geräte-ID ein neues HA-Gerät ergeben; keine Identitätsmigration.
+Diagnostics enthalten nur Strukturangaben und Flags (einschließlich
+`has_room_polygons`), niemals SVG, Namen, IDs, Koordinaten oder lokale Fingerprints.
+Die Karte zeigt naturgemäß Raumgeometrie und Namen im eigenen HA-Dashboard:
+Screenshots/Bilder nicht unbedacht öffentlich teilen.
+
+**Hardwaretest Beta 1:** über HACS die Vorabversion installieren, HA neu starten,
+Map-Entity und Segmentreinigung prüfen. Bei nicht verfügbarer Karte zuerst das
+Flag `has_room_polygons` ansehen, keine Rohwerte veröffentlichen. Neue Karte und
+geänderte Raumaufteilung testen; alte HA-Zuordnungen dürfen nicht ausgeführt werden.
+Beta-Renderer und Lifecycle sind automatisiert getestet, noch nicht hardwarevalidiert.
+
+Die folgenden Alpha-Abschnitte sind historische Zwischenstände; der obige
+Alpha-6-Hardwarebefund ersetzt deren damaligen Hinweis auf ausstehende Raumtests.
 
 ## Alpha 6: belegte Major-Map-ID nutzen
 

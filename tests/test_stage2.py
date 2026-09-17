@@ -21,6 +21,7 @@ def setup_rooms(c):
     state.metadata_valid = state.rooms_valid = True
     state.next_map_refresh = time.monotonic() + 3600
     c.client.maps.return_value = (state.active_map,)
+    c.client.rooms.return_value = state.rooms
     return YeediVacuum(c, c.robots[0])
 
 

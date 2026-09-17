@@ -1,6 +1,21 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-alpha.6 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-beta.1 auf feature/rooms-position-map; kein Merge nach main.
+
+## Beta 1
+
+201 Tests bestanden (175 bestehende + 26 neue Fälle). validate.py: PASS,
+26 Python-Dateien / 5 JSON-Dateien. Eine externe HA/aiohttp-Deprecation-Warnung.
+
+Home Assistant 2026.9.2 / Python 3.14.7. Alle bisherigen 175 Testfälle bleiben
+aktiv; Raum-Preflight-Fixtures liefern nun auch die ausdrücklich verlangten
+frischen Raumdaten. Zusätzliche synthetische Tests prüfen Image-Plattform,
+cloudfreie Bildabfrage, statisches SVG, dynamische/negative Bounds, Text-Escaping,
+optionale Marker, Cache-Invalidierung, neue Räume bei gleicher Map-ID,
+Generationsprüfung unter dem Write-Lock, HA-Mapping-Meldung und Datenschutz.
+Keine echten Cloudwerte als Fixtures übernommen. Der Besitzer bestätigt
+Alpha-6-Map-/Room-Erkennung und Segmentreinigung; Beta-1-SVG und Lifecycle
+benötigen noch den Hardwaretest. Die folgenden Abschnitte sind historisch.
 
 ## Alpha 6
 

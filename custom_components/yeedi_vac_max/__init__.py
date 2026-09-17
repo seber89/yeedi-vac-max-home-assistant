@@ -10,7 +10,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .client import YeediClient, CloudError, InvalidAuth, VerificationRequired
 from .coordinator import YeediCoordinator
 
-PLATFORMS = [Platform.VACUUM, Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS = [Platform.VACUUM, Platform.SENSOR, Platform.BINARY_SENSOR, Platform.IMAGE]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

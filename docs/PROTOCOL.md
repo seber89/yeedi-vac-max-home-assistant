@@ -1,6 +1,42 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 16. September 2026, 0.2.0-alpha.2. Diese Datei beschreibt die aktuelle Implementierung.
+Stand: 17. September 2026, 0.2.0-beta.1. Ältere Abschnitte halten die damaligen Befunde fest.
+
+## Beta 1: bestätigte Räume, lokales SVG und Lifecycle
+
+Owner-reported Alpha-6-Hardwaretest: Legacy-Discovery und Segmentreinigung
+funktionieren. MapSet.data enthält mid/msid als Strings, type und subsets als
+Array; die beobachteten zwei Einträge enthalten zunächst nur mssid. Reguläre
+MapSubSet-Reads liefern mid/mssid, subtype, type und value als String, ohne
+beobachtetes compress-Feld. Keine Rohantworten gespeichert. Die tatsächlich
+gelieferte Polygon-Kodierung ist weiterhin unbekannt: ausschließlich der schon
+vorhandene unabhängige polygon()-Parser wird verwendet, keine Decoder ergänzt.
+
+Map-/Positions-/Write-Protokoll, Retry-Budgets und Legacy-Fallback bleiben gleich.
+Vor spotArea wird unter dem bestehenden Command-Lock jetzt neben der Map auch
+die Raumstruktur neu gelesen (MapSet und gegebenenfalls reguläre MapSubSet-Reads,
+insgesamt weiter 40s). Lokale Generation = sortierte eindeutige Room-IDs;
+niemals Diagnoseausgabe. Map-ID oder Generation abweichend von der Auswahl:
+kein Write, stattdessen erneute HA-Bereichszuordnung. Die Cloud kann nach der
+letzten Abfrage theoretisch noch geändert werden; das Protokoll bietet keine
+atomare Map-Revision im Schreibbefehl. Keine darüber hinausgehende Garantie.
+
+Erfolgreicher regulärer Refresh bleibt stündlich, Fehler-Backoff 180s. Während
+des Refresh werden räumliche Daten als ungültig markiert und Listener informiert;
+neue Map-ID verwirft alte Räume vor der Room-Abfrage. Gleiche ID erzwingt bei
+fälligem Refresh ebenfalls neue Raumdaten. HA wird über seine öffentliche
+Segment-/Repair-API informiert; keine privaten Registries oder Auto-Zuordnung.
+Neue Coordinator-Instanz beginnt ohne räumlichen Cache; Geräteidentität unverändert.
+
+Die neue Image-Plattform verarbeitet ausschließlich gültigen Coordinator-State.
+Originaler statischer SVG-Renderer, XML-escaped Namen, dynamische Bounds, optionale
+Positionsmarker; keine Ressourcen/Code-Fragmente aus Cloudwerten. Kein I/O und keine
+persistenten Map-Dateien. Ohne Polygongeometrie/bei ungültigem Cache unavailable,
+Bildabruf liefert kein vorheriges SVG. Lokaler Render-Cache berücksichtigt Map-ID,
+Room-Generation, vollständige immutable Raumdaten und Positionen. Zeitstempel
+werden bei Coordinator-Änderungen gesetzt, nicht beim HTTP-Bildabruf.
+Keine Winkelinterpretation ergänzt (Orientierung ist optional und wird nicht dargestellt).
+SVG/Koordinaten/Namen/IDs/Fingerprints werden niemals in Diagnostics exportiert.
 
 ## Etappe 2: spotArea und redundante Aktionen
 
