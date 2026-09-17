@@ -9,11 +9,14 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import (CloudError, InvalidAuth, VerificationRequired, CommandUncertain,
-                     DeviceOffline, RateLimited, CommandRejected)
+                     DeviceOffline, RateLimited, CommandRejected, READ_RETRY_BUDGET)
 from .map_data import YeediMap, YeediRoom, RobotPosition, DockPosition, identifier
 
 _LOGGER = logging.getLogger(__name__)
 MAP_INTERVAL = 3600
+MAP_READ_TIMEOUT = READ_RETRY_BUDGET + 9  # 40s: two 15s reads, 1s pause, scheduling margin.
+MAP_ERROR_BACKOFF = 180
+ROOM_REFRESH_TIMEOUT = 20  # Separate existing bound for optional room/detail reads.
 COMMAND_GAP = 1.5
 MAX_PENDING = 4
 
@@ -87,7 +90,7 @@ class YeediCoordinator(DataUpdateCoordinator):
                 or not set(ids) <= {room.room_id for room in self.rooms[robot.did]}):
             raise HomeAssistantError("Room selection unavailable or stale; refresh room mapping")
         try:
-            async with asyncio.timeout(20):
+            async with asyncio.timeout(MAP_READ_TIMEOUT):
                 maps = await self.client.maps(robot)
             active = [item for item in maps if item.active]
             if len(active) != 1 or active[0].map_id != expected_map_id:
@@ -99,7 +102,7 @@ class YeediCoordinator(DataUpdateCoordinator):
                 raise HomeAssistantError("Active map changed; select rooms again")
         except (CloudError, TimeoutError):
             state.rooms_valid = state.metadata_valid = False
-            state.next_map_refresh = 0
+            state.next_map_refresh = time.monotonic() + MAP_ERROR_BACKOFF
             self.async_update_listeners()
             raise HomeAssistantError("Could not verify active map; no room command sent") from None
 
@@ -112,10 +115,10 @@ class YeediCoordinator(DataUpdateCoordinator):
             state.robot_position = state.dock_position = None
         if not force and time.monotonic() < state.next_map_refresh:
             return
-        state.next_map_refresh = time.monotonic() + MAP_INTERVAL
         try:
-            async with asyncio.timeout(20):
+            async with asyncio.timeout(MAP_READ_TIMEOUT):
                 maps = await self.client.maps(robot)
+            async with asyncio.timeout(ROOM_REFRESH_TIMEOUT):
                 active = [m for m in maps if m.active]
                 selected = active[0] if len(active) == 1 else None
                 if selected != state.active_map:
@@ -125,12 +128,15 @@ class YeediCoordinator(DataUpdateCoordinator):
                 state.rooms_valid = False
                 if selected is None:
                     state.rooms = ()
+                    state.next_map_refresh = time.monotonic() + MAP_INTERVAL
                     return
                 state.rooms = await self.client.rooms(robot, selected.map_id)
                 state.rooms_valid = True
+            state.next_map_refresh = time.monotonic() + MAP_INTERVAL
         except (CloudError, TimeoutError):
             state.metadata_valid = False
             state.rooms_valid = False
+            state.next_map_refresh = time.monotonic() + MAP_ERROR_BACKOFF
             # Retain cache but mark stale; future room commands must require validity.
 
     async def async_refresh_map_data(self, robot):

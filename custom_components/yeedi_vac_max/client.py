@@ -31,6 +31,10 @@ AUTH_KEY = "1581923437995"
 AUTH_SECRET = "304a71592690995b2bb304e66b5ddee6"
 PORTAL = "https://portal-eu.ecouser.net/api/"
 FAN_SPEEDS = {"Quiet": 1000, "Normal": 0, "Max": 1}
+HTTP_TIMEOUT = 15
+READ_ATTEMPTS = 2
+READ_RETRY_DELAY = 1
+READ_RETRY_BUDGET = HTTP_TIMEOUT * READ_ATTEMPTS + READ_RETRY_DELAY * (READ_ATTEMPTS - 1)
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -167,11 +171,11 @@ class YeediClient:
 
     async def _request(self, method: str, url: str, *, retry: bool = False, **kwargs) -> dict:
         """Bound requests; no retries for writes or login, no raw exception logging."""
-        for attempt in range(2 if retry else 1):
+        for attempt in range(READ_ATTEMPTS if retry else 1):
             try:
                 async with self._requests:
                     async with self.session.request(
-                        method, url, timeout=aiohttp.ClientTimeout(total=15),
+                        method, url, timeout=aiohttp.ClientTimeout(total=HTTP_TIMEOUT),
                         allow_redirects=False, **kwargs
                     ) as response:
                         if response.status in (401, 403):
@@ -191,12 +195,12 @@ class YeediClient:
                 raise
             except TimeoutError:
                 if attempt == 0 and retry:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(READ_RETRY_DELAY)
                     continue
                 raise CommandTimeout("Cloud request timed out; outcome unknown") from None
             except (aiohttp.ClientError, CannotConnect):
                 if attempt == 0 and retry:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(READ_RETRY_DELAY)
                     continue
                 raise CannotConnect("Cannot reach Yeedi cloud") from None
             except (ValueError, TypeError):

@@ -26,6 +26,14 @@ def shape(value):
     result = {"type": kind(value), "keys": keys(value)}
     if not isinstance(value, dict):
         return result
+    dock = value.get("chargePos")
+    positions = {"deebotPos": value.get("deebotPos"),
+                 "chargePos[0]": dock[0] if isinstance(dock, list) and dock else None}
+    for label, entry in positions.items():
+        result[label + "_fields"] = {
+            field: {"present": isinstance(entry, dict) and field in entry,
+                    "type": kind(entry.get(field) if isinstance(entry, dict) else None)}
+            for field in ("x", "y", "a", "invalid")}
     for field in ("data", "info", "subsets", "mid", "using", "msid", "mssid",
                   "value", "compress", "chargePos", "deebotPos"):
         result[field + "_present"] = field in value

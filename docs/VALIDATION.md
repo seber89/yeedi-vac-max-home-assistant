@@ -1,6 +1,17 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-alpha.3 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-alpha.4 auf feature/rooms-position-map; kein Merge nach main.
+
+## Alpha 4
+
+141 Tests bestanden: alle 129 bisherigen plus 12 neue synthetische Fälle.
+validate.py: PASS, 21 Python-Dateien / 5 JSON-Dateien. Eine unveränderte externe
+HA/aiohttp-Deprecation-Warnung. Tests prüfen das abgeleitete Budget, einen echten
+Client-Read-Retry unter zeitlich skaliertem äußeren Timeout (erster Versuch Timeout,
+zweiter erfolgreich), Fehler-Backoff mit erneutem Poll, langen Erfolgscache,
+Raumabfragen nur bei aktiver Map und Positionsdiagnose ohne sensible Werte.
+Keine Hardwareantworten als synthetische Fixtures ausgegeben. Der echte
+Alpha-3-Befund steht in PROTOCOL.md; Hardwaretest von Alpha 4 noch ausstehend.
 
 ## Zwischenschritt 2.5
 

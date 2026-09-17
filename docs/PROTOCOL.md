@@ -79,7 +79,8 @@ werden nicht als erfolgreicher Debounce-Kandidat gespeichert.
 
 SpatialState ist vom Basis-Snapshot getrennt. 60-Sekunden-Polling für Position,
 stündlicher Metadaten-/Raumcache mit explizitem Refresh-Hook. Reload initialisiert
-neu. Optionale Zeitbudgets: Position 8 Sekunden, Karten/Räume insgesamt 20 Sekunden;
+neu. Optionale Zeitbudgets ab Alpha 4: Position 8 Sekunden, Map-Metadaten 40 Sekunden,
+Räume/Details separat 20 Sekunden;
 Basis-Snapshot 60 Sekunden, Bestätigungs-Snapshot 20 Sekunden. Nach optionalen
 Fehlern gelten Cache-Flags als ungültig; spätere Raumsteuerung muss sie prüfen.
 Keine Rohantworten oder räumlichen Daten veröffentlichen, loggen oder diagnostizieren.
@@ -123,6 +124,27 @@ Diagnose mit synthetischen Varianten; sie sind keine realen Map-Fixtures.
 Nach dem Hardwarelauf zunächst `getCachedMapInfo` auswerten; nur anhand des
 Strukturbelegs korrigieren. Danach können MapSet/SubSet mit real ermittelten IDs
 abgefragt und erneut strukturell geprüft werden. Raumreinigung bleibt unvalidiert.
+
+## Alpha 4: minimaler Budget-Fix nach Live-Diagnose
+
+Besitzerbefund Alpha 3: getCachedMapInfo attempted=true, command_success=false,
+response_received=false, outcome=cancelled_or_budget_expired; MapSet/SubSet nicht
+aufgerufen. getPos akzeptiert unter resp.body.data, chargePos array/deebotPos object;
+Dockposition erkannt, Roboterposition weiterhin nicht erkannt.
+Damit liegt weiterhin kein belegtes Map-Antwortformat vor. Parser und Parameter
+bleiben unverändert. Das zu kurze äußere Budget ist nachgewiesen; ob dessen
+Korrektur allein die Cloudabfrage erfolgreich macht, muss der Hardwaretest zeigen.
+
+HTTP_TIMEOUT=15, READ_ATTEMPTS=2, READ_RETRY_DELAY=1 bleiben unverändert als
+gemeinsame Konstanten. MAP_READ_TIMEOUT=READ_RETRY_BUDGET+9 ergibt 40 Sekunden
+für Metadaten und den Map-Check vor Raumkommandos. Authentifizierung und Wartezeit
+auf den Client-Semaphor verbrauchen ebenfalls dieses endliche Budget.
+Raum-/Detailabfragen behalten ein separates 20-Sekunden-Gesamtbudget.
+Erfolg: 3600 Sekunden Cache ab Abschluss; Fehler: 180 Sekunden Backoff ab Fehler
+bis zum nächsten regulären Poll. Manueller Refresh/Reload bleibt explizit möglich.
+Keine neuen Cloudbefehle oder Schreibwiederholungen.
+Positionsdiagnose: nur present/type für x,y,a,invalid an deebotPos/chargePos[0].
+Keine Feldwerte und keine Parseränderung. Keine Etappe-3-Funktionen.
 
 ## Warum ein kleiner eingebauter Client?
 

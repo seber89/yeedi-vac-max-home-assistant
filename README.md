@@ -1,6 +1,27 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-alpha.3 — Zwischenschritt 2.5, temporäre Strukturdiagnose / Hardware-Test. Noch nicht gemergt.**
+**0.2.0-alpha.4 — Minimaler Timeout-Fix / Hardware-Test. Noch nicht gemergt.**
+
+## Alpha 4: konsistentes Map-Zeitbudget
+
+Die echte Alpha-3-Diagnose meldet bei getCachedMapInfo einen Abbruch ohne
+empfangene Antwort. Das bisherige äußere 20-Sekunden-Budget konnte den zweiten
+Leseversuch unterbrechen (2 × 15 Sekunden + 1 Sekunde Pause). Map-Metadaten
+erhalten jetzt separat 40 Sekunden, auch beim Map-Check vor Raumreinigung.
+Das umfasst 31 Sekunden HTTP-Retry-Budget plus 9 Sekunden Reserve; lange erneute
+Authentifizierung oder Ressourcenkonkurrenz können weiterhin das Budget erschöpfen.
+Optionale Raum-/Detailabfragen behalten separat ihr bisheriges 20-Sekunden-Limit.
+Die Serialisierung bleibt erhalten: eine laufende Map-Abfrage kann deshalb
+nachfolgende Steuerbefehle bis zum Ablauf ihres Budgets warten lassen.
+
+Nach Map-/Room-Fehlern erfolgt der nächste automatische Versuch frühestens nach
+180 Sekunden im normalen Polling, nicht erst nach einer Stunde. Erfolgreiche
+Abfragen behalten 3600 Sekunden Cache ab Abschluss. Kein zusätzlicher Write-Retry.
+Parser und Cloudparameter unverändert: reale Map-Antworten stehen weiterhin aus.
+getPos ist laut Live-Diagnose unter resp.body.data erfolgreich (chargePos array,
+deebotPos object). Die Diagnose ergänzt für deebotPos und chargePos[0] nur
+Vorhandensein/Typ von x, y, a, invalid, niemals Werte. Positionsparser unverändert.
+Nach Update HA neu starten und erneut nur structure_probe bereitstellen.
 
 ## Alpha 3: Map-/Room-Hardwarediagnose noch offen
 
