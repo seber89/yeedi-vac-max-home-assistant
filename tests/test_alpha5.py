@@ -28,7 +28,14 @@ def client():
 async def test_timeout_probes_once_then_backoff(coordinator, monkeypatch):
     now = [10000.]
     monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: now[0]))
-    coordinator.client.maps.side_effect = CommandTimeout("synthetic")
+    # Alpha 6 centralizes the same fallback inside the real client.maps().
+    c = client()
+    c._request.side_effect = CommandTimeout("synthetic")
+    c.positions = AsyncMock(return_value=(None, None))
+    c.rooms = AsyncMock()
+    c.maps = AsyncMock(wraps=c.maps)
+    c.probe_legacy_maps = AsyncMock(wraps=c.probe_legacy_maps)
+    coordinator.client = c
     await coordinator._spatial_refresh(coordinator.robots[0])
     coordinator.client.probe_legacy_maps.assert_awaited_once_with(coordinator.robots[0])
     coordinator.client.rooms.assert_not_awaited()

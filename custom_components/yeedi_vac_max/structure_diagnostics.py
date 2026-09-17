@@ -45,6 +45,11 @@ def shape(value):
             result[field + "_count"] = len(items)
             # Bound inspection cost without implying a truncated count is complete.
             sampled = items[:100]
+            if field == "subsets":
+                example = sampled[0] if sampled and isinstance(sampled[0], dict) else {}
+                result["subset_example_fields"] = {
+                    name: {"present": name in example, "type": kind(example.get(name))}
+                    for name in ("mssid", "name", "subtype", "value", "compress")}
             result[field + "_inspection_truncated"] = len(items) > 100
             result[field + "_entry_keys"] = sorted({k for item in sampled for k in keys(item)})
             result[field + "_entry_types"] = sorted({kind(item) for item in sampled})

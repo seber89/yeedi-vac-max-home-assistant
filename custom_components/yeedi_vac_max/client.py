@@ -36,6 +36,8 @@ READ_ATTEMPTS = 2
 READ_RETRY_DELAY = 1
 READ_RETRY_BUDGET = HTTP_TIMEOUT * READ_ATTEMPTS + READ_RETRY_DELAY * (READ_ATTEMPTS - 1)
 LEGACY_PROBE_TIMEOUT = HTTP_TIMEOUT + 3
+MAP_REQUEST_TIMEOUT = READ_RETRY_BUDGET + 9
+MAP_DISCOVERY_TIMEOUT = MAP_REQUEST_TIMEOUT + 2 * LEGACY_PROBE_TIMEOUT + 1
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -347,7 +349,14 @@ class YeediClient:
             raise
 
     async def maps(self, robot: Robot) -> tuple[YeediMap, ...]:
-        body = await self.command(robot, "getCachedMapInfo")
+        try:
+            async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
+                body = await self.command(robot, "getCachedMapInfo")
+        except CommandTimeout:
+            candidate = await self.probe_legacy_maps(robot)
+            if candidate is None:
+                raise CloudError("Legacy discovery returned no valid current map") from None
+            return (candidate,)
         info = object_value(body.get("data")).get("info")
         if not isinstance(info, list) or len(info) > 100:
             raise CloudError("Invalid map metadata")
@@ -365,19 +374,28 @@ class YeediClient:
                                    item.get("using") in (1, "1"))
         return tuple(result.values())
 
-    async def probe_legacy_maps(self, robot: Robot) -> None:
-        """Two sequential, single-attempt reads. Retain structure, never map data."""
+    async def probe_legacy_maps(self, robot: Robot) -> YeediMap | None:
+        """Read legacy structure and return only the evidenced current map ID.
+
+        Never interpret state or access MajorMap.value. A failed probe yields no map.
+        """
         recorded = self._structure.setdefault(robot.did, {})
         for name in LEGACY_COMMANDS:
             recorded.pop(name, None)  # Do not show an old result as this cycle's probe.
         for name in LEGACY_COMMANDS:
             try:
                 async with asyncio.timeout(LEGACY_PROBE_TIMEOUT):
-                    await self.command(robot, name)
+                    body = await self.command(robot, name)
+                if name == "getMajorMap":
+                    raw_mid = object_value(body.get("data")).get("mid")
+                    mid = identifier(raw_mid) if isinstance(raw_mid, str) else None
+                    if mid is not None and mid != "0":
+                        return YeediMap(mid, None, True)
             except (InvalidAuth, VerificationRequired, DeviceOffline, RateLimited):
                 break
             except (CloudError, TimeoutError):
                 continue
+        return None
 
     async def rooms(self, robot: Robot, map_id: str) -> tuple[YeediRoom, ...]:
         body = await self.command(robot, "getMapSet", {"mid": map_id, "type": "ar"})

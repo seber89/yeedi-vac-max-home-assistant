@@ -170,6 +170,36 @@ Keine Legacy-Probe im Write-/Statusbestätigungsablauf oder Room-Preflight.
 Die Ergebnisse dienen ausschließlich der bestehenden Safe-Structure-Probe;
 sie aktivieren keine Map-/Room-Funktionen und werden nicht als Kartendaten gecacht.
 
+## Alpha 6: zentraler funktionaler Legacy-Fallback
+
+Hardwarebefund des Besitzers: CachedMapInfo timeout; MapState akzeptiert mit
+resp.body.data.state string, MajorMap akzeptiert mit resp.body.data.mid string
+und value string. Keine Werte veröffentlicht. Das belegt den Antwortpfad, nicht
+die Semantik von state oder die Struktur von value. Keine neue GPL-Analyse/
+Portierung: nur diese Hardwarefakten werden eigenständig verwendet.
+
+client.maps() versucht primär CachedMapInfo (40s). Nur CommandTimeout aktiviert
+die wiederverwendete Legacy-Discovery (MapState, MajorMap; je 18s, ohne Retry).
+Sie liefert nun einen Kandidaten statt ausschließlich Struktur zu verwerfen:
+mid muss string sein, identifier() bestehen und ungleich "0" sein. Sonst liefert
+maps() CloudError. Erfolg ergibt genau YeediMap(mid, None, True). Keine Auswertung
+von MajorMap.value oder MapState.state. Die bekannte Privacy-Probe bleibt aktiv.
+Normales Polling und Room-Preflight nutzen denselben Clientpfad. Kein separater
+Coordinator-Fallback und kein erneutes Werfen des ursprünglichen Timeouts nach Erfolg.
+
+Äußere Discovery-Grenze: 40 + 2*18 + 1 = 77s. Primäres Budget nicht erhöht.
+Room-Refresh anschließend separat 40s (READ_RETRY_BUDGET+9) inklusive aller regulären
+Details, ohne unbegrenzte Schleife. GetMapSet(mid,"ar") folgt im selben Refresh.
+Der vorhandene Parser wird unverändert verwendet; bei abweichender Struktur sauberer
+Room-Fehler. Kein erzwungenes getMapSubSet. Erste Subset-Struktur diagnostiziert
+nur Vorhandensein/Typ von mssid/name/subtype/value/compress, nie Werte.
+
+Nach erfolgreicher Map-Discovery bleibt metadata_valid=true auch bei Room-Fehlern;
+active_map bleibt erhalten, rooms_valid=false und Räume werden geleert/gesperrt.
+Bei Map-Fehler metadata_valid=false. Fehler-Backoff weiterhin 180s, erfolgreicher
+Cache 3600s. Bestehende Queue/no-op-/Write-Validierung und Positionen unverändert.
+Alpha-6-Room-Struktur und Raumreinigung sind noch nicht hardwarevalidiert.
+
 ## Warum ein kleiner eingebauter Client?
 
 Der reguläre Python-Client bietet in der geprüften Version keinen Yeedi-Login. Der S20-Fork ergänzt ihn, benötigt aber Python/Rust-Paketbau und verwendet denselben Paketnamen wie die HA-Ecovacs-Abhängigkeit. Das `04z443`-Profil fehlt dort. Für die kleine Auswahl an HTTPS-Befehlen wird deshalb ein eigener asynchroner Client ohne zusätzliche Laufzeitabhängigkeit verwendet. Home Assistants vorhandenes aiohttp übernimmt HTTP. Der gesamte MQTT-, Karten- und Fork-Paketbau entfällt für diese erste Polling-Implementierung.

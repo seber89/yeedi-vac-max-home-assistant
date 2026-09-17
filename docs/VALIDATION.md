@@ -1,6 +1,23 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-alpha.5 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-alpha.6 auf feature/rooms-position-map; kein Merge nach main.
+
+## Alpha 6
+
+175 Tests bestanden: alle 156 bisherigen Fälle bleiben aktiv, 19 neue synthetische
+Fälle. Der Alpha-5-Fallback-/Backoff-Test verwendet jetzt den echten Client mit
+gemocktem Transport statt einen Coordinator-internen Fallback vorauszusetzen;
+gleiche Assertions für einmalige Probe, gesperrte Räume und Backoff bleiben bestehen.
+Keine Tests deaktiviert. validate.py PASS: 23 Python / 5 JSON. Eine unveränderte
+externe HA/aiohttp-Deprecation-Warnung.
+
+Neue Tests: primärer Erfolg ohne Legacy, Timeout-Fallback mit gültiger mid,
+fehlende/ungültige/Null-/Zero-ID, kein Zugriff des Discovery-Parsers auf value,
+gemeinsame Discovery im Room-Preflight, anschließender MapSet-Read im selben Refresh,
+Room-Fehler bei gültiger Map, privacy-safe Subset-Struktur und Diagnoseexport,
+keine erzwungene Detailabfrage, skalierter tatsächlicher MapSet-Read-Retry über
+das alte 20s-Budget hinaus, begrenzte Discovery-/Room-Budgets, Reject ohne Fallback.
+Synthetische Daten, keine echten IDs oder Map-Inhalte. Hardwaretest Alpha 6 ausstehend.
 
 ## Alpha 5
 

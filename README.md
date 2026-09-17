@@ -1,6 +1,38 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-alpha.5 — Legacy Map Discovery Probe / Hardware-Test. Noch nicht gemergt.**
+**0.2.0-alpha.6 — Funktionaler Legacy-Map-Fallback / Hardware-Test. Noch nicht gemergt.**
+
+## Alpha 6: belegte Major-Map-ID nutzen
+
+Der Besitzer bestätigt mit Alpha 5 erfolgreiche Antworten von getMapState
+(data.state string) und getMajorMap (data.mid string, data.value string), während
+getCachedMapInfo timeoutet. Alpha 6 nutzt deshalb zentral in client.maps() nach
+einem CommandTimeout den bestehenden sequenziellen Legacy-Pfad. Ausschließlich
+die gültige, nichtleere, von "0" verschiedene String-ID aus resp.body.data.mid
+wird als einzelne aktuelle Map übernommen (name=None, active=True).
+state wird nicht interpretiert; value nicht dekodiert, dekomprimiert oder gespeichert.
+Der Kandidat ist noch kein Beleg für funktionierende Räume.
+
+Polling und Raumkommando-Mapvalidierung verwenden dieselbe Discovery. Danach
+läuft im selben Refresh der vorhandene getMapSet(mid, type="ar")-Ablauf weiter.
+Room-Parser und reguläre Bedingungen für getMapSubSet bleiben unverändert;
+keine zusätzlichen Diagnoseabfragen. Bei Room-Fehler bleibt die Map gültig,
+rooms_valid=false und keine Räume werden exponiert. Die Strukturdiagnose ergänzt
+nur Präsenz/Typ von mssid/name/subtype/value/compress des ersten Subsets.
+
+Budget: CachedMapInfo weiterhin 40s, Legacy-Reads je maximal 18s ohne Retry;
+die gesamte Discovery ist auf 77s begrenzt. Room-Refresh erhält separat 40s
+für getMapSet **und** optionale Subsets zusammen, keine unbegrenzte Detail-Schleife.
+Der erste MapSet-Read kann damit sein 31s-Retry-Budget abschließen. Bei langsamen
+Details kann der Room-Refresh trotzdem begrenzt fehlschlagen. Backoff bleibt 180s,
+Erfolgscache 3600s. Der vorhandene Lock kann Steuerbefehle während der Discovery
+und Room-Abfragen warten lassen. Keine neue Command-Pipeline oder Write-Retries.
+
+Nach HACS-Update/HA-Neustart bitte nur die Diagnose-Struktur und Statusflags prüfen:
+Map erkannt, aber Räume fehlen, ist nun ausdrücklich darstellbar. Echte getMapSet-
+Antworten und Raumreinigung mit Alpha 6 sind noch nicht hardwarevalidiert.
+
+Die folgenden Alpha-Abschnitte dokumentieren die vorherigen Zwischenstände.
 
 ## Alpha 5: ausschließlich Legacy-Strukturprobe
 
