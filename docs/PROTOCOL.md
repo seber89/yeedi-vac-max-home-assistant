@@ -146,6 +146,30 @@ Keine neuen Cloudbefehle oder Schreibwiederholungen.
 Positionsdiagnose: nur present/type für x,y,a,invalid an deebotPos/chargePos[0].
 Keine Feldwerte und keine Parseränderung. Keine Etappe-3-Funktionen.
 
+## Alpha 5: Legacy-Discovery als reine Hardwareprobe
+
+Live-Befund Alpha 4: getCachedMapInfo outcome=timeout, keine Antwort. getPos
+akzeptiert unter resp.body.data; chargePos array, deebotPos object. x/y/a/invalid
+bei deebotPos sind numerisch, chargePos[0] enthält numerische x/y/a. Keine Werte
+übernommen; weder Positions- noch Map-Parser geändert.
+
+Interoperabilitätsquelle: ecovacs-deebot.js f1ae56e, library/commands/map.js
+belegt getMapState/getMajorMap ohne zusätzliche Parameter; mapManager.js belegt
+das Feld state. Es wurden nur Befehls-/Feldnamen und Parameterfakten verwendet,
+keine Parser, Klassen, Tests oder Fixtures übernommen. Bestehende MIT-Lizenz und
+THIRD_PARTY_NOTICES bleiben unverändert. Die Referenz ist kein Hardwarebeleg.
+
+Nur CommandTimeout von client.maps im Spatial-Refresh löst die Probe aus.
+Beide Reads laufen sequenziell innerhalb des vorhandenen Coordinator-Locks,
+je ein HTTP-Versuch ohne Retry (15s), außen je 18s. Kein neuer Task/Timer/Queue.
+GetCachedMapInfo-Budget bleibt 40s, Backoff 180s nach Abschluss, Erfolgscache 3600s.
+Bis zu 36s zusätzliche Wartezeit unter dem Lock ist für die Probe möglich.
+Offline/Busy/Auth beendet die Probe; sonst wird der zweite Read auch nach einem
+fehlgeschlagenen ersten Read versucht. HA-Cancellation wird nicht verschluckt.
+Keine Legacy-Probe im Write-/Statusbestätigungsablauf oder Room-Preflight.
+Die Ergebnisse dienen ausschließlich der bestehenden Safe-Structure-Probe;
+sie aktivieren keine Map-/Room-Funktionen und werden nicht als Kartendaten gecacht.
+
 ## Warum ein kleiner eingebauter Client?
 
 Der reguläre Python-Client bietet in der geprüften Version keinen Yeedi-Login. Der S20-Fork ergänzt ihn, benötigt aber Python/Rust-Paketbau und verwendet denselben Paketnamen wie die HA-Ecovacs-Abhängigkeit. Das `04z443`-Profil fehlt dort. Für die kleine Auswahl an HTTPS-Befehlen wird deshalb ein eigener asynchroner Client ohne zusätzliche Laufzeitabhängigkeit verwendet. Home Assistants vorhandenes aiohttp übernimmt HTTP. Der gesamte MQTT-, Karten- und Fork-Paketbau entfällt für diese erste Polling-Implementierung.

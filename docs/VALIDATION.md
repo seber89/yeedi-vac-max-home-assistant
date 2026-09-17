@@ -1,6 +1,16 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-alpha.4 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-alpha.5 auf feature/rooms-position-map; kein Merge nach main.
+
+## Alpha 5
+
+156 Tests bestanden: alle bisherigen 141 plus 15 neue synthetische Fälle.
+validate.py: PASS, 22 Python / 5 JSON. Eine unveränderte externe HA/aiohttp-Warnung.
+Geprüft: Fallback nur nach Client-Timeout, keine Räume aus Probe, 180s Backoff,
+leere Payloads, ein Versuch je Legacy-Read, sequenzielle Ausführung, Privacy,
+Fortsetzung nach Timeout/Reject, Abbruch bei Busy/Offline/Auth und HA-Cancellation,
+keine Legacy-Probe bei normalen Writes, Read-only-Guard vor Netzwerkzugriff.
+Echte Antworten von getMapState/getMajorMap stehen noch aus. Keine Parseränderung.
 
 ## Alpha 4
 

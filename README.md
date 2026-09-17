@@ -1,6 +1,27 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-alpha.4 — Minimaler Timeout-Fix / Hardware-Test. Noch nicht gemergt.**
+**0.2.0-alpha.5 — Legacy Map Discovery Probe / Hardware-Test. Noch nicht gemergt.**
+
+## Alpha 5: ausschließlich Legacy-Strukturprobe
+
+Alpha 4 meldet einen vollständigen Client-Timeout für getCachedMapInfo ohne
+empfangene Antwort. Nur nach diesem Timeout beim regulären/gezielten Map-Refresh
+werden getMapState und getMajorMap nacheinander ohne Zusatzparameter gelesen.
+Jeweils ein HTTP-Versuch (15 Sekunden), separat maximal 18 Sekunden einschließlich
+Authentifizierung/Wartezeit. Keine Wiederholung dieser Legacy-Reads. Bei Offline,
+Rate-Limit oder Authentifizierungsfehler endet die Probe. Abbruch von HA wird
+weitergereicht. Kein Fallback bei Parserfehlern, Ablehnung oder äußerem Timeout.
+
+Antworten werden nur strukturell diagnostiziert, nicht als Map-/Raumcache übernommen.
+Keine neue Raumabfrage, keine Karte erfunden. getCachedMapInfo behält sein Budget;
+der Drei-Minuten-Fehler-Backoff beginnt nach Abschluss der Probe. Die bestehende
+Serialisierung bleibt erhalten: die Probe kann wartende Befehle zusätzlich um
+bis zu 36 Sekunden verzögern. Normale Vacuum-Schreibbefehle und ihr
+Bestätigungsablauf lösen keine Legacy-Probe aus. getPos und alle Parser unverändert.
+
+Nach HACS-Update/HA-Neustart nur structure_probe aus der Diagnose bereitstellen,
+insbesondere getMapState/getMajorMap. Keine Rohantworten oder Map-Daten senden.
+Echte Hardwareantworten dieser Befehle stehen noch aus. Kein Step 3.
 
 ## Alpha 4: konsistentes Map-Zeitbudget
 

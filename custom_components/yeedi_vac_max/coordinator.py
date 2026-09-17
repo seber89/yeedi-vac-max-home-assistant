@@ -9,7 +9,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .client import (CloudError, InvalidAuth, VerificationRequired, CommandUncertain,
-                     DeviceOffline, RateLimited, CommandRejected, READ_RETRY_BUDGET)
+                     DeviceOffline, RateLimited, CommandRejected, CommandTimeout, READ_RETRY_BUDGET)
 from .map_data import YeediMap, YeediRoom, RobotPosition, DockPosition, identifier
 
 _LOGGER = logging.getLogger(__name__)
@@ -116,8 +116,13 @@ class YeediCoordinator(DataUpdateCoordinator):
         if not force and time.monotonic() < state.next_map_refresh:
             return
         try:
-            async with asyncio.timeout(MAP_READ_TIMEOUT):
-                maps = await self.client.maps(robot)
+            try:
+                async with asyncio.timeout(MAP_READ_TIMEOUT):
+                    maps = await self.client.maps(robot)
+            except CommandTimeout:
+                # Discovery probe only: no map IDs parsed or room calls enabled.
+                await self.client.probe_legacy_maps(robot)
+                raise
             async with asyncio.timeout(ROOM_REFRESH_TIMEOUT):
                 active = [m for m in maps if m.active]
                 selected = active[0] if len(active) == 1 else None

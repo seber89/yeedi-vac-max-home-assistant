@@ -19,7 +19,7 @@ from uuid import uuid4
 import aiohttp
 
 from .const import TARGET_CLASS_ID
-from .structure_diagnostics import COMMANDS, response_structure
+from .structure_diagnostics import COMMANDS, LEGACY_COMMANDS, response_structure
 from .map_data import (YeediMap, YeediRoom, RobotPosition, DockPosition,
                        identifier, position, polygon, fallback_name)
 
@@ -35,6 +35,7 @@ HTTP_TIMEOUT = 15
 READ_ATTEMPTS = 2
 READ_RETRY_DELAY = 1
 READ_RETRY_BUDGET = HTTP_TIMEOUT * READ_ATTEMPTS + READ_RETRY_DELAY * (READ_ATTEMPTS - 1)
+LEGACY_PROBE_TIMEOUT = HTTP_TIMEOUT + 3
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -315,13 +316,15 @@ class YeediClient:
         return {name: deepcopy(recorded.get(name, {"attempted": False})) for name in COMMANDS}
 
     async def _command(self, robot: Robot, name: str, data=None, *, writing=False, probe=None):
+        if name in LEGACY_COMMANDS and writing:
+            raise ValueError("Legacy map probes are read-only")
         try:
             await self.authenticate()
         except (CommandUncertain, CannotConnect):
             # No device write has been attempted; status cannot confirm a login.
             raise CannotConnect("Authentication transport failed before command") from None
         response = await self._device_request(writing,
-            "POST", PORTAL + "iot/devmanager.do", retry=not writing,
+            "POST", PORTAL + "iot/devmanager.do", retry=not writing and name not in LEGACY_COMMANDS,
             params={"cv": "1.94.76", "t": "a", "av": "1.3.0", "mid": TARGET_CLASS_ID,
                     "did": robot.did, "td": "q", "u": self.user_id},
             json={"cmdName": name, "payloadType": "j", "auth": self._auth(), "td": "q",
@@ -361,6 +364,20 @@ class YeediClient:
             result[mid] = YeediMap(mid, name if isinstance(name, str) else None,
                                    item.get("using") in (1, "1"))
         return tuple(result.values())
+
+    async def probe_legacy_maps(self, robot: Robot) -> None:
+        """Two sequential, single-attempt reads. Retain structure, never map data."""
+        recorded = self._structure.setdefault(robot.did, {})
+        for name in LEGACY_COMMANDS:
+            recorded.pop(name, None)  # Do not show an old result as this cycle's probe.
+        for name in LEGACY_COMMANDS:
+            try:
+                async with asyncio.timeout(LEGACY_PROBE_TIMEOUT):
+                    await self.command(robot, name)
+            except (InvalidAuth, VerificationRequired, DeviceOffline, RateLimited):
+                break
+            except (CloudError, TimeoutError):
+                continue
 
     async def rooms(self, robot: Robot, map_id: str) -> tuple[YeediRoom, ...]:
         body = await self.command(robot, "getMapSet", {"mid": map_id, "type": "ar"})

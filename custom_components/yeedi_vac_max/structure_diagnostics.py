@@ -4,11 +4,12 @@ This is not a parser fallback. Unobserved locations never authorize commands.
 """
 import json
 
-COMMANDS = ("getCachedMapInfo", "getMapSet", "getMapSubSet", "getPos")
+LEGACY_COMMANDS = ("getMapState", "getMajorMap")
+COMMANDS = ("getCachedMapInfo", "getMapSet", "getMapSubSet", "getPos", *LEGACY_COMMANDS)
 FIELDS = frozenset({"body", "data", "info", "mid", "using", "name", "subsets",
                     "msid", "mssid", "type", "subtype", "value", "connections",
                     "index", "cleanset", "compress", "chargePos", "deebotPos",
-                    "x", "y", "a", "angle", "code"})
+                    "x", "y", "a", "angle", "code", "state"})
 
 
 def kind(value):
@@ -35,7 +36,7 @@ def shape(value):
                     "type": kind(entry.get(field) if isinstance(entry, dict) else None)}
             for field in ("x", "y", "a", "invalid")}
     for field in ("data", "info", "subsets", "mid", "using", "msid", "mssid",
-                  "value", "compress", "chargePos", "deebotPos"):
+                  "value", "compress", "chargePos", "deebotPos", "state"):
         result[field + "_present"] = field in value
         result[field + "_type"] = kind(value.get(field))
     for field in ("info", "subsets"):
