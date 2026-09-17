@@ -21,6 +21,7 @@ async def coordinator(tmp_path):
                         discovery_keys=MappingProxyType({}), subentries_data=[])
     client = AsyncMock()
     client.structure_diagnostics = Mock(return_value={})
+    client.geometry_diagnostics = Mock(return_value={})
     client.positions.return_value = (None, None)
     client.maps.return_value = ()
     client.snapshot.return_value = {"online": True, "activity": "idle"}

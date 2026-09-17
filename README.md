@@ -1,6 +1,32 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-beta.1 — Experimental / Beta / Hardware-Test. Noch nicht gemergt.**
+**0.2.0-beta.2 — Experimental / Beta / Formatdiagnose. Noch nicht gemergt.**
+
+## Beta 2: privacy-safe Raumgeometrie-Formatdiagnose
+
+Echter Beta-1-Befund: aktive Map und Räume sind gültig, Segmentreinigung funktioniert,
+aber `has_room_polygons=false`. Die akzeptierten MapSubSet-Antworten enthalten
+`value` als String ohne `compress`. Der vorhandene Polygonparser versteht diese
+Strings nicht. Beta 2 ergänzt ausschließlich eine lokale Formatdiagnose,
+**keinen Decoder und keine neue Kartenfunktion**.
+
+Nach Installation über HACS Home Assistant neu starten und eine neue Diagnose
+herunterladen. Kein Saugtest erforderlich. `room_geometry_probe` enthält je Roboter
+eine anonyme Zusammenfassung des letzten begonnenen Room-Reads, ohne IDs/Namen:
+`value_count`, `polygon_count`, `all_same_shape`, `formats` mit je `count` und `format`.
+Gezählt werden passend zugeordnete akzeptierte MapSubSet-Antworten, auch wenn deren
+value-Feld fehlt oder unerwartet typisiert ist. Bei einem abgebrochenen Refresh
+kann die Zusammenfassung unvollständig sein; sie ist kein Nachweis gültiger Rooms.
+Der nächste Room-Read setzt die Probe zurück; Entladen löscht sie aus dem Speicher.
+
+Klassifikationen enthalten nur Präsenz/Typ, Leerstring, grobe Längenklasse,
+ASCII-/Whitespace-/Trennzeichenflags, JSON-Gültigkeit und obersten JSON-Typ,
+V1-XY-Syntax sowie Base64-/Hex-Zeichensatzflags und Teilbarkeit der Länge durch vier.
+Gleiche Klassifikationen werden dedupliziert. Keine Inhalte, exakten Längen,
+Prefixes/Suffixes, Hashes, IDs, Namen oder Koordinaten. Base64-/Hex-Flags beweisen
+**keinen Codec**; es wird nichts daraus dekodiert, dekomprimiert oder interpretiert.
+MajorMap.value wird nicht untersucht. Parser, Requests, Raumreinigung, Lifecycle,
+Image-Entity, SVG-Renderer und Geräteidentität bleiben unverändert.
 
 ## Beta 1: lokale Kartenansicht und sichere Raumzuordnung
 

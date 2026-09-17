@@ -1,6 +1,18 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-beta.1 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-beta.2 auf feature/rooms-position-map; kein Merge nach main.
+
+## Beta 2
+
+231 Tests bestanden: alle 201 bisherigen Fälle plus 30 neue synthetische Fälle.
+validate.py: PASS, 28 Python / 5 JSON. Eine externe HA/aiohttp-Deprecation-Warnung.
+JSON-Top-Level-Typen, XY-Syntax, Base64-/Hex-Zeichensatzflags ohne Decodierung,
+Längenklassen an Grenzen, malformed/unexpected values, Deduplizierung, echte
+Client-Room-Testpipeline und Diagnoseexport ohne sensible Sentinelwerte geprüft.
+Keine zusätzlichen Cloudaufrufe, MajorMap-Probe unverändert, Kopierschutz und
+Zurücksetzen der lokalen Formatdiagnose geprüft. Bestehende Raum-/Map-/Write-
+und Renderertests bleiben aktiv. Neue Hardwarediagnose noch erforderlich,
+für diesen Schritt kein Saugtest nötig.
 
 ## Beta 1
 

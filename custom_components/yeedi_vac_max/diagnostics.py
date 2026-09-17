@@ -4,12 +4,14 @@
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return {
-        "integration_version": "0.2.0-beta.1",
+        "integration_version": "0.2.0-beta.2",
         "target_class": "04z443",
         "region": "DE",
         "last_update_success": coordinator.last_update_success,
         "structure_probe": [coordinator.client.structure_diagnostics(robot)
                             for robot in coordinator.robots],
+        "room_geometry_probe": [coordinator.client.geometry_diagnostics(robot)
+                                for robot in coordinator.robots],
         "robots": [
             {
                 "online": bool((coordinator.data or {}).get(robot.did, {}).get("online")),

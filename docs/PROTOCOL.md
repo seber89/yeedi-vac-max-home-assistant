@@ -1,6 +1,26 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 17. September 2026, 0.2.0-beta.1. Ältere Abschnitte halten die damaligen Befunde fest.
+Stand: 17. September 2026, 0.2.0-beta.2. Ältere Abschnitte halten die damaligen Befunde fest.
+
+## Beta 2: ausschließlich Formatklassifikation
+
+Owner-reported Beta-1-Befund: Map/Rooms gültig, zwei Subsets, akzeptierte
+MapSubSet.data.value-Strings ohne compress, keine geparsten Polygone; Dock vorhanden,
+Roboterposition fehlt. Keine realen Strings als Fixture gespeichert oder untersucht.
+Der bestehende reguläre Room-Ablauf klassifiziert lokal die value-Felder akzeptierter,
+passender MapSubSet-Antworten. Keine zusätzlichen Requests und keine Parseränderung.
+Die Diagnose speichert ausschließlich fixe Typ-/Bucket-Labels und boolesche
+Formatflags; gleiche Formen werden gezählt, ohne Zuordnung zu Raum-IDs oder Namen.
+JSON wird nur auf Gültigkeit und Top-Level-Typ geprüft; NaN/Infinity sind kein JSON.
+Base64/Hex ausschließlich Zeichensatzprüfung des vollständigen Strings, ohne
+Whitespace-Normalisierung, Paddingvalidierung oder Decodierung. Leere Strings
+gelten nicht als Base64-/Hex-Kandidat. `empty` bedeutet exakt leer, Whitespace
+wird separat gemeldet. XY-Flag prüft die bestehende Semikolon-Syntax und Grenzen,
+nicht die geometrische Brauchbarkeit. Es liefert keine Polygonpunkte.
+Die Probe umfasst den letzten begonnenen Room-Read (bei Abbruch ggf. partiell),
+wird vor dem nächsten Read zurückgesetzt und bei close gelöscht. Fehlende und
+unerwartete value-Typen werden ausschließlich mit present/type beschrieben.
+MajorMap.value, Cloud-/Command-/Map-Lifecycle und Renderer bleiben unberührt.
 
 ## Beta 1: bestätigte Räume, lokales SVG und Lifecycle
 

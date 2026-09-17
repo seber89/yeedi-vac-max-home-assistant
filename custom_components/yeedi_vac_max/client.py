@@ -20,6 +20,7 @@ import aiohttp
 
 from .const import TARGET_CLASS_ID
 from .structure_diagnostics import COMMANDS, LEGACY_COMMANDS, response_structure
+from .geometry_diagnostics import value_format, aggregate_formats
 from .map_data import (YeediMap, YeediRoom, RobotPosition, DockPosition,
                        identifier, position, polygon, fallback_name)
 
@@ -171,6 +172,7 @@ class YeediClient:
         self._auth_lock = asyncio.Lock()
         self._requests = asyncio.Semaphore(3)
         self._structure = {}
+        self._geometry = {}
 
     async def _request(self, method: str, url: str, *, retry: bool = False, **kwargs) -> dict:
         """Bound requests; no retries for writes or login, no raw exception logging."""
@@ -317,6 +319,10 @@ class YeediClient:
         recorded = self._structure.get(robot.did, {})
         return {name: deepcopy(recorded.get(name, {"attempted": False})) for name in COMMANDS}
 
+    def geometry_diagnostics(self, robot: Robot) -> dict:
+        """Latest room-read cycle only, aggregate format flags without raw data."""
+        return deepcopy(self._geometry.get(robot.did, aggregate_formats([])))
+
     async def _command(self, robot: Robot, name: str, data=None, *, writing=False, probe=None):
         if name in LEGACY_COMMANDS and writing:
             raise ValueError("Legacy map probes are read-only")
@@ -398,6 +404,9 @@ class YeediClient:
         return None
 
     async def rooms(self, robot: Robot, map_id: str) -> tuple[YeediRoom, ...]:
+        formats = []
+        polygon_count = 0
+        self._geometry[robot.did] = aggregate_formats(formats)
         body = await self.command(robot, "getMapSet", {"mid": map_id, "type": "ar"})
         data = object_value(body.get("data"))
         if "mid" in data and identifier(data["mid"]) != map_id:
@@ -413,6 +422,7 @@ class YeediClient:
             if rid is None or rid in rooms:
                 continue
             detail = item
+            observed_format = None
             if "value" not in item or not item.get("name"):
                 try:
                     response = await self.command(robot, "getMapSubSet", {
@@ -421,12 +431,17 @@ class YeediClient:
                     if (identifier(candidate.get("mssid")) == rid
                             and identifier(candidate.get("mid", map_id)) == map_id):
                         detail = item | candidate
+                        observed_format = value_format(candidate.get("value"), present="value" in candidate)
                 except (CloudError, TimeoutError):
                     pass
             name = detail.get("name")
             rooms[rid] = YeediRoom(
                 rid, name.strip() if isinstance(name, str) and name.strip() else fallback_name(len(rooms)),
-                identifier(detail.get("subtype")), polygon(detail.get("value"), detail.get("compress")))
+                  identifier(detail.get("subtype")), polygon(detail.get("value"), detail.get("compress")))
+            if observed_format is not None:
+                formats.append(observed_format)
+                polygon_count += int(rooms[rid].polygon is not None)
+                self._geometry[robot.did] = aggregate_formats(formats, polygon_count)
         return tuple(rooms.values())
 
     async def positions(self, robot: Robot) -> tuple[RobotPosition | None, DockPosition | None]:
@@ -470,3 +485,4 @@ class YeediClient:
         self.token = self.password = ""
         self.expires = 0
         self._structure.clear()
+        self._geometry.clear()
