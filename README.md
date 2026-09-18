@@ -1,6 +1,53 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-beta.4 — Experimental / Beta / Hardware-Diagnose: Outline-Probe. Noch nicht gemergt.**
+**0.2.0-beta.5 — Experimental / Beta / Hardware-Diagnose: Direct Major/Minor Map. Noch nicht gemergt.**
+
+## Beta 5: begrenzte Direct-HTTPS-Transportdiagnose
+
+Beta 4 erhält laut Hardwarebefund eine akzeptierte getMapInfo-Antwort ohne
+eigentliche Map-Daten. Beta 5 ergänzt nach der bestehenden Outline-Probe eine
+separate diagnostische getMajorMap-Abfrage. Die funktionale Legacy-Map-Erkennung
+bleibt unverändert. Nur bei passender aktueller Map-ID und einer streng erkannten
+kommagetrennten unsigned-dezimalen CRC-Liste werden höchstens zwei unterschiedliche
+verwendete Piece-Indizes mit getMinorMap(mid, pieceIndex, type=ol) abgefragt.
+Der belegte Empty-Piece-Sentinel wird übersprungen. Keine erfundenen Indizes,
+keine Abfrage aller Pieces. Keine Decodierung, CRC-Berechnung oder neue Kartenanzeige.
+
+Die zusätzliche Major-/Minor-Probe hat insgesamt 60 Sekunden Budget. MajorMap
+behält maximal 18 Sekunden ohne Retry; jeder MinorMap-Read erhält innerhalb des
+Restbudgets höchstens 40 Sekunden mit der bestehenden sicheren Read-Strategie.
+Maximal zwei **logische** MinorMap-Reads (bei Transport-Retry jeweils bis zu zwei
+HTTP-Versuche). Busy/Offline/Auth stoppen weitere Pieces. Timeout/Reject sind
+isoliert. Das Gesamtbudget kann den zweiten Read vorzeitig beenden. Der normale
+Lock bleibt bestehen; die einmalige Diagnose kann wartende Befehle verzögern.
+
+Neue anonyme Diagnoseabschnitte (je Roboter ein Listeneintrag):
+
+- `direct_major_map_probe`: bekannte Felder nur present/type; value nur Formatflags,
+  grobe Längen-/Tokenanzahlklassen, keine Inhalte.
+- `direct_minor_map_probe`: höchstens zwei Versuche, Antwort-/Erfolgs-/Fehlerzahlen
+  und deduplizierte Formate akzeptierter Payloads, ohne Piece-Zuordnung.
+- `mqtt_map_probe`: in Beta 5 bewusst **nicht implementiert/getestet**, alle
+  Verbindungsflags false, `protocol_verified=false` (vollständige sichere Parameter fehlen).
+- `map_transport_probe`: bloße Befunde, keine Codec-Empfehlung. `usable_structure`
+  heißt passende MajorMap-Datenstruktur mit aktueller ID, nicht darstellbare Karte.
+  `nonempty_payload_seen` belegt nur einen nichtleeren String, keinen gültigen Codec.
+
+**Warum kein MQTT-Listener?** Broadcast-Topics und mögliche Map-Ereignisse sind
+öffentlich belegt. Die geprüften Referenzen verwenden jedoch unterschiedliche
+Port-/Benutzerkonventionen und deaktivieren die TLS-Zertifikatsprüfung. Eine
+vertrauenswürdige Broker-Zertifikatskette und die sichere Kombination für dieses
+Yeedi-DE-Setup sind nicht hinreichend belegt. Keine Tokenübertragung an einen
+unverifizierten Broker, kein neuer Login und kein geratenes Credential-Format.
+Details/Quellen: [PROTOCOL.md](docs/PROTOCOL.md). Keine neue Abhängigkeit oder MQTT-Tasks.
+**MQTT=false ist deshalb kein Negativbefund über den MQTT-Kartenpfad.** Auch bei
+leeren direkten Antworten kann Beta 5 Weg C nicht abschließend beweisen.
+
+Hardwaretest: Beta 5 installieren, HA einmal vollständig neu starten, Robbi
+angedockt lassen, etwa zwei Minuten warten (bei ausgeschöpften Probe-Budgets
+gegebenenfalls länger), neue Diagnose herunterladen. Kein Saugtest, keine
+wiederholten Neustarts und keine parallelen Map-Refreshs in der Yeedi-App.
+Erst die echte Diagnose zeigt, ob der direkte MinorMap-Pfad Inhalte liefert.
 
 ## Beta 4: ausschließlich getMapInfo-Outline-Strukturprobe
 

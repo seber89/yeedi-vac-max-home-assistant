@@ -1,6 +1,58 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 18. September 2026, 0.2.0-beta.4. Ältere Abschnitte halten die damaligen Befunde fest.
+Stand: 18. September 2026, 0.2.0-beta.5. Ältere Abschnitte halten die damaligen Befunde fest.
+
+## Beta 5: Direct-Piece-Diagnose; MQTT bewusst nicht gestartet
+
+Hardwaremeldung Beta 4: MapInfo accepted, aber keine verwertbaren Map-Payloadfelder.
+Separater optionaler Direct-MajorMap-Read nach der bestehenden Outline-Probe;
+funktionale maps()/Legacy-Discovery und sämtliche Steuerpfade unverändert.
+Nur bei derselben aktuellen validierten mid werden Piece-Indizes verwendet.
+CRC-Listengrammatik: mindestens zwei kommagetrennte ASCII-Dezimalwerte, optional
+umgebendes Whitespace je Token, jeweils unsigned 32-bit. Defensive Grenzen:
+8192 Zeichen / 256 Tokens, keine Annahme einer festen Piece-Anzahl. Der dokumentierte
+Empty-Piece-Sentinel wird ausgeschlossen. Die ersten höchstens zwei verbleibenden
+nullbasierten Positionen bilden die Request-Indizes; keine CRC-Berechnung. Tokens
+und Roh-MajorMap werden nicht über folgende awaits hinweg behalten oder gespeichert.
+Ungültige Liste: keine MinorMap-Requests. Ausschließlich mid/pieceIndex/type=ol.
+
+60s gemeinsames diagnostisches Budget; MajorMap maximal 18s mit unveränderter
+Legacy-Read-Strategie, MinorMap je höchstens 40s innerhalb des Restbudgets mit
+vorhandenem Read-Retry. Höchstens zwei logische Minor-Reads, keine weitere
+Retry-Schleife. Fehlende Antworten/Reject/Timeout verändern Rooms und Online nicht.
+Busy/Offline/Auth stoppen weitere Pieces; HA-Cancellation bleibt durchlässig.
+Akzeptierte Minor-Formate werden ohne Indexzuordnung dedupliziert. Empfangene
+Rejects zählen als response, aber nicht als accepted; deren Inhalte werden nicht
+übernommen. MQTT-Flags false bedeuten nicht getestet, keine Transportausschlussdiagnose.
+
+### Recherche nur zu Interoperabilitätsfakten (18.09.2026)
+
+- [DeebotUniverse MQTT-Protokoll](https://deebot.readthedocs.io/advanced/protocols/mqtt/):
+  asynchrone Broadcasts und iot/atr/command/device/class/resource/j als Topic-Prinzip.
+- [ecovacs-deebot.js constants.js, f1ae56e](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/constants.js):
+  bekannter Empty-Piece-CRC-Sentinel; keine benutzerbezogene CRC übernommen.
+- [map.js, gleicher Pin](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/commands/map.js)
+  und [mapManager.js](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/managers/mapManager.js):
+  MajorMap.value als CRC-Liste, nullbasierter Index und MinorMap-Felder mid/pieceIndex/type.
+  Keine Renderer-/Decoder-/Architekturübernahme, keine Tests/Fixtures kopiert.
+- [ecovacsDeviceSession.js](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/ecovacsDeviceSession.js):
+  regionaler mq-Host, TLS/8883, Benutzer mit Realm-Suffix, Session-Token als Passwort,
+  Client-Identifier mit Resource, Broadcast-Subscription. Die Referenz deaktiviert
+  standardmäßig Zertifikatsprüfung und beschreibt eine private Broker-CA.
+- [Yeedi-Fork mqtt_client.py, 07d9392](https://github.com/gyordanov/client.py/blob/07d93928a1d556aae711b41335afbddd5bd61551/deebot_client/mqtt_client.py):
+  anderer Port 443 und Benutzer ohne Suffix; Client-Identifier mit Realm/Resource,
+  ebenfalls ausgeschaltete Zertifikatsprüfung beim Cloud-Default.
+
+Belegt sind MQTT-Prinzip, Topic-Familie, Session-Token-Nutzung und mögliche
+Map-Nachrichten. Nicht hinreichend belegt ist die sichere vollständige Verbindung
+für dieses Yeedi-DE-Konto einschließlich vertrauenswürdigem Broker-Zertifikat.
+Kein Versuch mit realen Credentials, keine Abschaltung von TLS-Prüfungen und keine
+neue Anmeldung. Deshalb MQTT bewusst nicht implementiert; `protocol_verified=false`
+bezieht sich auf die vollständige sichere Konfiguration, nicht auf die Existenz
+des Protokolls. Keine Dependencies, Konfigurationsfelder, Tasks oder Reconnects.
+Die installierte HA-MQTT-Integration nutzt paho-mqtt, der Fork aiomqtt; keines
+dieser Pakete wird für den nicht freigegebenen Diagnosepfad neu eingebunden.
+Die vorhandene HTTP-Authentifizierung und Device-Identity bleiben unverändert.
 
 ## Beta 4: Outline-Probe, keine Interpretation
 

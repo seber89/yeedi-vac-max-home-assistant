@@ -18,6 +18,12 @@ synthetic tests are independently written. See docs/PROTOCOL.md for facts and
 limitations. No third-party decompressor or map renderer is shipped.
 aiohttp is supplied by Home Assistant; no new runtime dependencies are added.
 
+Beta 5 additionally checks the same pinned references for MQTT connection/topic
+facts and the MajorMap CRC-list / empty-piece sentinel / MinorMap request fields.
+No algorithms, decoders, renderers, classes, fixtures or tests are ported.
+MQTT is intentionally not implemented: a secure complete connection configuration
+for this Yeedi setup is not sufficiently verified (see docs/PROTOCOL.md).
+
 Names identify interoperability targets only. No official brand assets are
 included; the existing icon is an original drawing.
 

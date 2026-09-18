@@ -5,7 +5,7 @@ This is not a parser fallback. Unobserved locations never authorize commands.
 import json
 
 LEGACY_COMMANDS = ("getMapState", "getMajorMap")
-COMMANDS = ("getCachedMapInfo", "getMapSet", "getMapSubSet", "getPos", *LEGACY_COMMANDS, "getMapInfo")
+COMMANDS = ("getCachedMapInfo", "getMapSet", "getMapSubSet", "getPos", *LEGACY_COMMANDS, "getMapInfo", "getMinorMap")
 OUTLINE_FIELDS = ("mid", "type", "totalWidth", "totalHeight", "pixel", "totalCount",
                   "index", "pieceIndex", "startX", "startY", "width", "height",
                   "crc", "value", "pieceValue")

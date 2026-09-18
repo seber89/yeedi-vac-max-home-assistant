@@ -1,6 +1,19 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-beta.4 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-beta.5 auf feature/rooms-position-map; kein Merge nach main.
+
+## Beta 5
+
+316 Tests bestanden: bisherige 279 plus 37 neue synthetische Fälle. validate.py:
+PASS, 32 Python / 5 JSON. Eine externe HA/aiohttp-Warnung. Tests umfassen strenge
+CRC-Listengrammatik, Empty-Piece-Sentinel, maximal zwei unterschiedliche reale
+Listenpositionen, exakt erlaubte Request-Felder, gültige aktuelle Map-ID,
+Map-Mismatch/fehlende Liste ohne Minor-Read, accepted/received/rejected/timeout,
+Busy-Abbruch, Gesamtbudget, Cancellation, Formate ohne Decodierung und Privacy
+des gesamten Diagnoseexports. Kein MQTT-Code: explizit nicht getestet/verbunden.
+Vorhandener Beta-4-Testclient mockt nur den neuen, separat getesteten Zusatzpfad.
+Alle bestehenden Tests bleiben aktiv. Compile-/Importcheck und Manifest-JSON
+werden zusätzlich geprüft; keine neue Dependency. Hardwarebefunde Beta 5 offen.
 
 ## Beta 4
 

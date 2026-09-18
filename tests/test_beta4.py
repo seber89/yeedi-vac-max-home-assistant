@@ -21,6 +21,7 @@ ROBOT = Robot('PRIVATE_DEVICE','PRIVATE_RESOURCE','PRIVATE_NAME')
 def client():
     c = YeediClient(None,'PRIVATE_ACCOUNT','PRIVATE_PASSWORD','DE','PRIVATE_CLIENT')
     c.authenticate = AsyncMock()
+    c.probe_map_transport = AsyncMock()  # New comparison is tested separately.
     c._request = AsyncMock(return_value={'ret':'ok','resp':{'body':{'data':{}}}})
     return c
 
