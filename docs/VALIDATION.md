@@ -1,6 +1,18 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-beta.6.1 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-beta.6.2 auf feature/rooms-position-map; kein Merge nach main.
+
+## Beta 6.2
+
+446 Tests bestanden: alle 415 bisherigen plus 31 neue synthetische Fälle.
+validate.py: PASS, 37 Python / 5 JSON. Compile-/Import- und Manifestprüfung PASS.
+Geprüft: unterschiedliche CRC-/Sentinel-/Nullstrukturen, leere Mengen, gleiche und
+unterschiedliche decodierte/encodierte Inhalte, transienter Fingerprint-Cleanup,
+LZMA1-Raw-Gegencheck für Null-/Nonzero-Daten, tatsächliche Abweichung vom primären
+Ergebnis, Properties-/Dictionary-/Output-/Input-Limits, maximal ein Gegencheck,
+keine zusätzlichen Requests, Cache-only ohne Gegencheck, Fehlerisolation sowie
+strikt allowlisteter Export ohne IDs/Hashes/Inhalte. Keine alten Tests deaktiviert.
+Eine externe HA/aiohttp-DeprecationWarning. Hardwarediagnose steht noch aus.
 
 ## Beta 6.1
 

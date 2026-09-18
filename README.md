@@ -1,6 +1,34 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-beta.6.1 — Experimental / Beta / Hardware-Test: Raw-Map-Finalisierung. Noch nicht gemergt.**
+**0.2.0-beta.6.2 — Experimental / Beta / Hardware-Diagnose: Zero-Pixel-Probe. Noch nicht gemergt.**
+
+## Beta 6.2: ausschließlich Zero-Pixel-Ursache eingrenzen
+
+Beta 6.1 bestätigt laut Hardwarebefund erfolgreiche Generation-Prüfung und
+Rasteraufbau, aber ausschließlich Null-Pixel. Beta 6.2 ändert deshalb weder
+Decoder/Renderer noch Sentinel, Steuerung, Raumreinigung oder Map-Lifecycle.
+
+Der neue Abschnitt `zero_pixel_probe` enthält nur CRC-Anzahl-/Gleichheitsmerkmale,
+aggregierte Null-/Nonzero-/Gleichheitsmerkmale der decodierten Pieces und
+Gleichheitsmerkmale der übertragenen Payloads. Ausschließlich Booleans/Buckets,
+keine CRCs, IDs, Bytes, Hashes oder Pixelwerte im Export.
+
+Maximal ein bereits geladenes und primär decodiertes Piece wird zusätzlich über
+LZMA1 FORMAT_RAW mit expliziten Headerparametern gegengeprüft. Kein anderes Format,
+keine neuen Downloads, keine Verwendung alternativer Pixel zur Kartendarstellung.
+Die Probe meldet nur Erfolg, Übereinstimmung und Vorhandensein von Nonzero-Pixeln.
+Beide Wege verwenden Pythons liblzma: Übereinstimmung prüft die Headeranwendung,
+beweist aber nicht, dass der Cloud-Payload die gewünschte Karte enthält.
+
+Gleichheitsfingerprints existieren nur transient während eines Loads und werden
+danach verworfen; Payloads werden nicht zusätzlich gespeichert. Kein Disk-Cache.
+Decodierte Cache-Pieces zählen mit; Encoded-Vergleich und Gegencheck betreffen
+nur tatsächlich neu geladene Pieces. Ohne solche Pieces bleiben ihre Flags false
+und die Anzahlklasse 0 — das bedeutet nicht geprüft, nicht verschieden.
+
+**Hardware:** installieren → HA vollständig neu starten → angedockt 2–3 Minuten
+warten → Diagnose herunterladen. Kein Saugtest. Noch keine automatische Lösung
+aus diesem Befund ableiten; MQTT bleibt deaktiviert.
 
 ## Beta 6.1: vollständige Nonzero-Palette und eindeutige Finaldiagnose
 

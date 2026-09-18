@@ -2,6 +2,7 @@
 import time
 
 from .raw_map import safe_status
+from .zero_pixel_diagnostics import safe_export
 
 
 def raw_diagnostics(state):
@@ -16,7 +17,9 @@ def raw_diagnostics(state):
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return {
-        "integration_version": "0.2.0-beta.6.1",
+        "integration_version": "0.2.0-beta.6.2",
+        "zero_pixel_probe": [safe_export(coordinator.spatial[robot.did].raw_status.get('zero_pixel_probe'))
+                             for robot in coordinator.robots],
         "raw_map": [raw_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
         "target_class": "04z443",
         "region": "DE",

@@ -24,6 +24,7 @@ from .geometry_diagnostics import value_format, aggregate_formats
 from .transport_diagnostics import empty_probe, major_shape, minor_shape, piece_indices
 from .raw_map import RawMap, MapFormatError, MapChanged, parse_major, decode_piece, render_png, count_bucket
 from .raw_map import MapRenderError, pixel_buckets
+from .zero_pixel_diagnostics import ZeroPixelProbe, alternate_decode
 from .map_data import (YeediMap, YeediRoom, RobotPosition, DockPosition,
                        identifier, position, polygon, fallback_name)
 
@@ -431,12 +432,14 @@ class YeediClient:
         loaded = decoded = failures = 0
         tasks = []
         stage = 'major_initial'
+        zero_probe = ZeroPixelProbe()
         try:
             async with asyncio.timeout(RAW_MAP_TIMEOUT):
                 body = await self.command(robot, 'getMajorMap')
                 if object_value(body.get('data')).get('mid') != map_id:
                     raise MapChanged('Current map changed')
                 major = parse_major(body.get('data'), map_id)
+                zero_probe.major(major.crcs)
                 del body
                 status['major_valid'] = True
                 status['required_piece_count_bucket'] = count_bucket(len(major.required))
@@ -448,6 +451,8 @@ class YeediClient:
                     for index in major.required:
                         if previous.major.crcs[index] == major.crcs[index]:
                             pieces[index] = previous.pieces[index]
+                            if pieces[index] is not None:
+                                zero_probe.decoded(pieces[index])
                 pending = iter(i for i in major.required if pieces[i] is None)
                 stage = 'piece_download'
 
@@ -457,9 +462,19 @@ class YeediClient:
                         response = await self.command(robot, 'getMinorMap', {
                             'mid': map_id, 'pieceIndex': index, 'type': 'ol'})
                         loaded += 1
+                        value = object_value(response.get('data')).get('pieceValue')
+                        zero_probe.encoded(value)
                         try:
                             pieces[index] = await asyncio.to_thread(decode_piece, response.get('data'), major, index)
                             decoded += 1
+                            zero_probe.decoded(pieces[index])
+                            if not zero_probe.crosscheck_claimed:
+                                zero_probe.crosscheck_claimed = True
+                                try:
+                                    zero_probe.result.update(await asyncio.to_thread(alternate_decode, value, pieces[index]))
+                                except Exception:
+                                    pass  # An optional crosscheck never invalidates primary pixels.
+                            del value
                         except MapFormatError:
                             failures += 1
                             status['failure_stage'] = 'piece_decode'
@@ -510,6 +525,7 @@ class YeediClient:
             status['loaded_piece_count_bucket'] = count_bucket(loaded)
             status['decoded_piece_count_bucket'] = count_bucket(decoded)
             status['decode_failures_bucket'] = count_bucket(failures)
+            status['zero_pixel_probe'] = zero_probe.finish()
 
     async def probe_map_transport(self, robot: Robot, map_id: str) -> None:
         """Optional direct comparison, separate from functional map discovery."""

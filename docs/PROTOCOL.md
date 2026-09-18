@@ -1,6 +1,44 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-beta.6.1. Ältere Abschnitte halten die damaligen Befunde fest.
+Stand: 0.2.0-beta.6.2. Ältere Abschnitte halten die damaligen Befunde fest.
+
+## Beta 6.2: nur aggregierte Zero-Pixel-Analyse
+
+CRC-Struktur: Anzahl gesamt, bekannter Empty-Sentinel, CRC null, unterschiedliche
+CRCs, alle gleich und alle nicht durch den bekannten Sentinel markierten CRCs
+gleich. Sentinel und Request-Auswahl bleiben unverändert. Keine CRC veröffentlicht.
+Decodierte Pieces: Anzahl, Null-/Nonzero-Anzahlen, alle null/identisch und Anzahl
+unterschiedlicher Inhalte. Encoded-Payloads: nur Gleichheit und Distinct-Bucket.
+Vergleiche mittels ausschließlich während des Loads gehaltener SHA-256-Digests;
+keine Payloadkopien, keine Ausgabe oder Persistierung der Digests. Ergebnis ist
+ein reiner Befund, keine automatische Anpassung des Sentinels oder Kartenformats.
+
+Ein primär erfolgreich decodiertes Piece pro Load erhält einen zusätzlichen
+unabhängig geschriebenen FORMAT_RAW/FILTER_LZMA1-Aufruf. Grundlage:
+[öffentliche LZMA-Formatspezifikation](https://raw.githubusercontent.com/tukaani-project/xz/master/doc/lzma-file-format.txt)
+und [Python lzma](https://docs.python.org/3/library/lzma.html).
+Properties kodieren lc/lp/pb; Dictionary ist Little-Endian. Der bereits belegte
+Legacy-Header endet nach neun Bytes; exakt dessen verbleibender Stream wird
+verwendet. Strenges Base64, maximal 512 KiB encoded, 16 MiB Dictionary, lc+lp<=4,
+maximal 65536 Ausgabebytes plus ein Überlauf-Prüfbyte. Kein Codec-Raten.
+Bei bekannter Ausgabelänge kann LZMA laut Spezifikation ohne EOS enden: der
+Gegencheck akzeptiert dann exakt passende Ausgabe bei vollständig verbrauchtem
+Input, niemals eine Überlänge. Der funktionale primäre Decoder bleibt unverändert.
+
+Nur alternate_decode_success, alternate_matches_primary und
+alternate_nonzero_pixels_present verlassen den Gegencheck. Beide Pfade verwenden
+liblzma, keine Behauptung zweier unabhängiger Kompressionsbibliotheken. Alternative
+Pixel werden weder gespeichert noch veröffentlicht. Crosscheck-Ausfälle isoliert.
+Keine zusätzlichen HTTP-Requests; Cache, zwei Worker, Zeitbudget und zweite
+Generationsprüfung bleiben erhalten. Die einmalige Claim-Markierung wird vor dem
+await gesetzt; auch bei zwei Workern höchstens ein Gegencheck.
+
+zero_pixel_probe exportiert ausschließlich fest allowlistete Booleans und Buckets
+0, 1, 2–8, 9–32, 33–64, 65–256, 257–1024, >1024. Keine exakten Anzahlen oder
+Piece-Zuordnungen. Gleichheitsflags bei leerer Menge false. Decoded-Anzahlen hier
+inklusive Cache, raw_map.decoded_piece_count_bucket weiterhin nur neue Decodes.
+Bei Cache-only-Refresh kein Encoded-/Alternate-Test; Distinct-Encoded-Bucket 0.
+Snapshots nach Fehlern können Teilmengen beschreiben, keine Vollständigkeit behauptet.
 
 ## Beta 6.1: Palette und Final-Stages
 
