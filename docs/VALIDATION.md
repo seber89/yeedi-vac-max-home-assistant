@@ -1,6 +1,19 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-beta.3 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-beta.4 auf feature/rooms-position-map; kein Merge nach main.
+
+## Beta 4
+
+279 Tests bestanden: alle bisherigen 249 plus 30 neue synthetische Fälle.
+validate.py: PASS, 30 Python / 5 JSON. Eine externe HA/aiohttp-Warnung.
+Geprüft: exakt mid/type=ol, Read-only-Guard vor Netzwerk, unveränderte Read-Retry-
+Einstellung ohne Proben-Retry, ungültige/fehlende/mehrdeutige Map ohne Probe,
+Timeout/Reject ohne Einfluss auf gültige Rooms, keine Probe im gecachten Poll
+oder normaler Raumreinigung, Probe bei erkannter Map trotz Room-Fehler,
+feste Response-Pfade und Formatbuckets ohne IDs/CRC/Koordinaten/Rohdaten,
+ungewöhnliche Typen und Cancellation. Alpha-6-Testclient mockt nur die neue,
+hier separat getestete Probe; bestehende Assertierungen bleiben aktiv.
+HardwaregetMapInfo-Antwort noch ausstehend. Kein Decoder oder Renderer ergänzt.
 
 ## Beta 3
 

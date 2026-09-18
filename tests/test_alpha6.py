@@ -27,6 +27,7 @@ def client(major=None, room=None):
     c = YeediClient(None, "PRIVATE_ACCOUNT", "PRIVATE_PASSWORD", "DE", "PRIVATE_CLIENT")
     c.authenticate = AsyncMock()
     c.positions = AsyncMock(return_value=(None, None))
+    c.probe_map_info = AsyncMock()  # Independently tested optional beta-4 probe.
     c._request = AsyncMock(side_effect=[CommandTimeout("synthetic"),
         envelope({"state":"arbitrary_uninterpreted_string"}),
         envelope(major if major is not None else {"mid":"PRIVATE_MAP", "value":"PRIVATE_MAP_DATA"}),

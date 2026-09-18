@@ -324,7 +324,7 @@ class YeediClient:
         return deepcopy(self._geometry.get(robot.did, aggregate_formats([])))
 
     async def _command(self, robot: Robot, name: str, data=None, *, writing=False, probe=None):
-        if name in LEGACY_COMMANDS and writing:
+        if name in (*LEGACY_COMMANDS, "getMapInfo") and writing:
             raise ValueError("Legacy map probes are read-only")
         try:
             await self.authenticate()
@@ -341,7 +341,7 @@ class YeediClient:
                                          "tzm": 480, "ver": "0.0.50"},
                               "body": {"data": data or {}}}})
         if probe is not None:
-            probe.update(response_structure(response))
+            probe.update(response_structure(response, outline=name == "getMapInfo"))
         return command_body(response, writing=writing)
 
     async def _device_request(self, writing, *args, **kwargs):
@@ -402,6 +402,16 @@ class YeediClient:
             except (CloudError, TimeoutError):
                 continue
         return None
+
+    async def probe_map_info(self, robot: Robot, map_id: str) -> None:
+        """One bounded outline read; discard result, keep safe structure only."""
+        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == "0":
+            return
+        try:
+            async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
+                await self.command(robot, "getMapInfo", {"mid": map_id, "type": "ol"})
+        except (CloudError, TimeoutError):
+            pass  # Optional diagnostics must not invalidate discovered rooms.
 
     async def rooms(self, robot: Robot, map_id: str) -> tuple[YeediRoom, ...]:
         formats = []

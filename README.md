@@ -1,6 +1,35 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-beta.3 — Experimental / Beta / Hardware-Test: MapSubSet-msid. Noch nicht gemergt.**
+**0.2.0-beta.4 — Experimental / Beta / Hardware-Diagnose: Outline-Probe. Noch nicht gemergt.**
+
+## Beta 4: ausschließlich getMapInfo-Outline-Strukturprobe
+
+Auch nach dem msid-Fix bleiben laut Hardwaretest beide Raumwerte leer; Räume und
+Basissteuerung funktionieren. Beta 4 ergänzt nach erfolgreicher eindeutiger
+Kartenerkennung beim räumlichen Refresh einen read-only `getMapInfo`-Aufruf mit
+der aktuellen validierten Map-ID und `type="ol"`. Die Probe folgt dem normalen
+Room-Ablauf und kann auch bei fehlgeschlagenen Room-Details stattfinden, sofern
+die Map gültig erkannt wurde. Kein getMinorMap, keine geratenen Pieces und kein Decoder.
+
+Ein logischer Probe-Aufruf pro fälligem/gezieltem Refresh, nicht bei jedem
+Minuten-Poll und nicht im normalen Room-Command-Preflight. Bestehende sichere
+Read-Strategie (maximal zwei HTTP-Versuche), insgesamt zusätzlich höchstens 40s.
+Keine weitere Probe-Wiederholung. Der bestehende Lock bleibt erhalten: wartende
+Steuerbefehle können entsprechend länger warten. Probe-Fehler ändern weder
+Room-Gültigkeit noch deren Cache-/Fehlerintervalle. HA-Abbruch wird weitergereicht.
+
+Unter `structure_probe` → `getMapInfo` stehen nur Status, feste Antwortpfade,
+Typen und erlaubte Feldnamen. Unter `levels` → `resp.body.data` → `fields` werden
+bekannte Metadaten ausschließlich als present/type beschrieben; value/pieceValue
+bei Strings zusätzlich als empty/length_bucket. Keine tatsächlichen IDs, CRCs,
+Dimensionen, Koordinaten oder Karteninhalte. Die Antwort wird nicht als Karte gespeichert.
+Beta-2-Formatdiagnose, Beta-3-msid-Fix, Raumreinigung, Parser und SVG bleiben erhalten.
+Ohne gültige Geometrie bleibt die Image-Entity weiterhin unavailable.
+
+**Hardwaretest:** Beta 4 installieren, Home Assistant vollständig neu starten,
+ca. zwei Minuten bzw. bis zum Abschluss des räumlichen Refresh warten und eine
+neue Diagnose herunterladen. Noch kein Saugtest. Die tatsächliche getMapInfo-
+Antwort dieses Geräts ist noch unbekannt; keine Kartenunterstützung daraus behauptet.
 
 ## Beta 3: belegte MapSet-msid an Raumdetails weiterreichen
 

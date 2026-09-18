@@ -1,6 +1,30 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 18. September 2026, 0.2.0-beta.3. Ältere Abschnitte halten die damaligen Befunde fest.
+Stand: 18. September 2026, 0.2.0-beta.4. Ältere Abschnitte halten die damaligen Befunde fest.
+
+## Beta 4: Outline-Probe, keine Interpretation
+
+Owner-reported erneuter Beta-3-Hardwaretest: online, gültige Map/Rooms und Dock,
+aber zwei leere MapSubSet.value-Strings auch mit msid. Als vom Auftrag belegter
+V1-Read wird getMapInfo mit mid=current validated map ID und type=ol ergänzt.
+Keine weiteren Request-Felder oder Map-Kommandos. Eigenständige Implementierung,
+keine GPL-Implementierung/Fixtures/Decoder übernommen.
+
+Probe separat nach dem normalen Room-Refresh, nur bei erfolgreicher eindeutiger
+Map-Discovery; auch bei Room-Fehler möglich. Keine Erweiterung von client.maps()
+oder der normalen Room-Command-Validierung. Maximal 40s einschließlich der
+vorhandenen Read-Retry-Strategie (2x15s + 1s Pause + Reserve), keine zusätzliche
+Retry-Schleife. Fehler werden isoliert; Cache-Intervalle und Room-Zustand bleiben
+unverändert. Cancellation wird weitergereicht. GetMapInfo als Write wird schon
+vor Authentifizierung/Netzwerkzugriff abgelehnt. Kein getMinorMap.
+
+Strukturdiagnose verwendet ausschließlich die bereits festen Envelope-Pfade.
+Outline-Feld-Allowlist: mid, type, totalWidth, totalHeight, pixel, totalCount,
+index, pieceIndex, startX, startY, width, height, crc, value, pieceValue.
+Alle Werte nur present/type; Strings value/pieceValue zusätzlich empty und
+grober length_bucket. Weder Dimensionen, CRCs, IDs, Koordinaten noch Rohinhalte
+werden gespeichert/exportiert. Keine verschachtelte Suche nach Pieces oder
+Interpretation von Kartendaten. Echter Response und Eignung bleiben unvalidiert.
 
 ## Beta 3: MapSet-spezifische msid
 

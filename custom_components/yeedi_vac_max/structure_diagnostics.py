@@ -5,7 +5,10 @@ This is not a parser fallback. Unobserved locations never authorize commands.
 import json
 
 LEGACY_COMMANDS = ("getMapState", "getMajorMap")
-COMMANDS = ("getCachedMapInfo", "getMapSet", "getMapSubSet", "getPos", *LEGACY_COMMANDS)
+COMMANDS = ("getCachedMapInfo", "getMapSet", "getMapSubSet", "getPos", *LEGACY_COMMANDS, "getMapInfo")
+OUTLINE_FIELDS = ("mid", "type", "totalWidth", "totalHeight", "pixel", "totalCount",
+                  "index", "pieceIndex", "startX", "startY", "width", "height",
+                  "crc", "value", "pieceValue")
 FIELDS = frozenset({"body", "data", "info", "mid", "using", "name", "subsets",
                     "msid", "mssid", "type", "subtype", "value", "connections",
                     "index", "cleanset", "compress", "chargePos", "deebotPos",
@@ -66,7 +69,25 @@ def shape(value):
     return result
 
 
-def response_structure(response):
+def outline_shape(value):
+    """Outline probe only: fixed keys/types, never dimensions, CRC or contents."""
+    result = {"type": kind(value), "keys": sorted(set(OUTLINE_FIELDS).intersection(value))
+              if isinstance(value, dict) else []}
+    fields = value if isinstance(value, dict) else {}
+    result["fields"] = {}
+    for name in OUTLINE_FIELDS:
+        item = fields.get(name)
+        entry = {"present": name in fields, "type": kind(item)}
+        if name in ("value", "pieceValue") and isinstance(item, str):
+            entry["empty"] = not item
+            entry["length_bucket"] = next((label for limit, label in (
+                (0, "0"), (64, "1-64"), (256, "65-256"), (1024, "257-1024"),
+                (4096, "1025-4096")) if len(item) <= limit), ">4096")
+        result["fields"][name] = entry
+    return result
+
+
+def response_structure(response, *, outline=False):
     """Describe envelope plus three fixed payload levels, even if rejected."""
     response = response if isinstance(response, dict) else {}
     payload = response.get("resp")
@@ -78,9 +99,10 @@ def response_structure(response):
             payload = None
     body = payload.get("body") if isinstance(payload, dict) else None
     data = body.get("data") if isinstance(body, dict) else None
+    describe = outline_shape if outline else shape
     result["levels"] = {
-        "response": shape(response), "resp": shape(payload),
-        "resp.data": shape(payload.get("data") if isinstance(payload, dict) else None),
-        "resp.body": shape(body), "resp.body.data": shape(data),
+        "response": describe(response), "resp": describe(payload),
+        "resp.data": describe(payload.get("data") if isinstance(payload, dict) else None),
+        "resp.body": describe(body), "resp.body.data": describe(data),
     }
     return result
