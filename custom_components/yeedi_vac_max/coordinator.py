@@ -12,6 +12,7 @@ from .client import (CloudError, InvalidAuth, VerificationRequired, CommandUncer
                      DeviceOffline, RateLimited, CommandRejected, READ_RETRY_BUDGET,
                      MAP_REQUEST_TIMEOUT, MAP_DISCOVERY_TIMEOUT)
 from .map_data import YeediMap, YeediRoom, RobotPosition, DockPosition, identifier
+from .raw_map import RawMap, MapChanged, safe_status
 
 _LOGGER = logging.getLogger(__name__)
 MAP_INTERVAL = 3600
@@ -32,6 +33,10 @@ class SpatialState:
     metadata_valid: bool = False
     rooms_valid: bool = False
     next_map_refresh: float = 0
+    raw_map: RawMap | None = None
+    raw_valid_until: float = 0
+    next_raw_refresh: float = 0
+    raw_status: dict = field(default_factory=safe_status)
 
     @property
     def room_generation(self):
@@ -137,6 +142,8 @@ class YeediCoordinator(DataUpdateCoordinator):
         except (CloudError, TimeoutError):
             state.robot_position = state.dock_position = None
         if not force and time.monotonic() < state.next_map_refresh:
+            if state.metadata_valid and state.active_map and time.monotonic() >= state.next_raw_refresh:
+                await self._raw_refresh(robot)
             return
         state.metadata_valid = False
         state.rooms_valid = False
@@ -148,6 +155,9 @@ class YeediCoordinator(DataUpdateCoordinator):
             selected = active[0] if len(active) == 1 else None
             if selected != state.active_map:
                 state.rooms = ()
+                state.raw_map = None
+                state.raw_valid_until = state.next_raw_refresh = 0
+                state.raw_status = safe_status()
             state.maps, state.active_map = maps, selected
             state.metadata_valid = True
             self.async_update_listeners()
@@ -168,6 +178,39 @@ class YeediCoordinator(DataUpdateCoordinator):
             # Optional read-only probe after the normal room flow, never during
             # room-command preflight and never on each minute's cached poll.
             await self.client.probe_map_info(robot, state.active_map.map_id)
+            await self._raw_refresh(robot)
+
+    async def _raw_refresh(self, robot):
+        """Optional image state, independent of rooms and controls."""
+        state = self.spatial[robot.did]
+        selected = state.active_map
+        if selected is None or not state.metadata_valid:
+            return
+        status = safe_status()
+        state.raw_status = status
+        try:
+            result = await self.client.load_raw_map(robot, selected.map_id, state.raw_map, status)
+        except MapChanged:
+            state.raw_map = None
+            state.raw_valid_until = 0
+            result = None
+        except Exception:
+            # No logging: an unexpected exception might contain private data.
+            result = None
+        if state.active_map != selected or not state.metadata_valid:
+            state.raw_map = None
+            state.raw_valid_until = 0
+            state.raw_status = safe_status()
+            return
+        now = time.monotonic()
+        if isinstance(result, RawMap) and result.major.map_id == selected.map_id:
+            state.raw_map = result
+            state.raw_valid_until = now + MAP_INTERVAL + MAP_ERROR_BACKOFF
+            state.next_raw_refresh = now + MAP_INTERVAL
+        else:
+            state.next_raw_refresh = now + MAP_ERROR_BACKOFF
+            state.raw_valid_until = min(state.raw_valid_until, now + MAP_ERROR_BACKOFF)
+        self.async_update_listeners()
 
     async def async_refresh_map_data(self, robot):
         """Explicit refresh hook; reload creates fresh caches automatically."""

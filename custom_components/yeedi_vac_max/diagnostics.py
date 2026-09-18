@@ -1,10 +1,23 @@
 """Allowlisted diagnostics: no credentials, identifiers or raw responses."""
+import time
+
+from .raw_map import safe_status
+
+
+def raw_diagnostics(state):
+    result = {key: state.raw_status.get(key, default) for key, default in safe_status().items()}
+    available = bool(state.metadata_valid and state.active_map and state.raw_map
+                     and state.active_map.map_id == state.raw_map.major.map_id
+                     and time.monotonic() < state.raw_valid_until)
+    result.update(available=available, complete=available, image_generated=available)
+    return result
 
 
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return {
-        "integration_version": "0.2.0-beta.5",
+        "integration_version": "0.2.0-beta.6",
+        "raw_map": [raw_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
         "target_class": "04z443",
         "region": "DE",
         "last_update_success": coordinator.last_update_success,

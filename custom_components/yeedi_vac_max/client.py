@@ -22,6 +22,7 @@ from .const import TARGET_CLASS_ID
 from .structure_diagnostics import COMMANDS, LEGACY_COMMANDS, response_structure
 from .geometry_diagnostics import value_format, aggregate_formats
 from .transport_diagnostics import empty_probe, major_shape, minor_shape, piece_indices
+from .raw_map import RawMap, MapFormatError, MapChanged, parse_major, decode_piece, render_png, count_bucket
 from .map_data import (YeediMap, YeediRoom, RobotPosition, DockPosition,
                        identifier, position, polygon, fallback_name)
 
@@ -41,6 +42,7 @@ LEGACY_PROBE_TIMEOUT = HTTP_TIMEOUT + 3
 MAP_REQUEST_TIMEOUT = READ_RETRY_BUDGET + 9
 MAP_DISCOVERY_TIMEOUT = MAP_REQUEST_TIMEOUT + 2 * LEGACY_PROBE_TIMEOUT + 1
 TRANSPORT_PROBE_TIMEOUT = 60
+RAW_MAP_TIMEOUT = 75
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -418,7 +420,73 @@ class YeediClient:
                 await self.command(robot, "getMapInfo", {"mid": map_id, "type": "ol"})
         except (CloudError, TimeoutError):
             pass  # Optional diagnostics must not invalidate discovered rooms.
-        await self.probe_map_transport(robot, map_id)
+        # Functional loading replaces the automatic two-piece Beta-5 probe.
+
+    async def load_raw_map(self, robot, map_id, previous, status):
+        """Optional atomic build, two workers, bounded budget, no surviving tasks."""
+        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == '0':
+            return None
+        loaded = decoded = failures = 0
+        tasks = []
+        try:
+            async with asyncio.timeout(RAW_MAP_TIMEOUT):
+                body = await self.command(robot, 'getMajorMap')
+                if object_value(body.get('data')).get('mid') != map_id:
+                    raise MapChanged('Current map changed')
+                major = parse_major(body.get('data'), map_id)
+                del body
+                status['major_valid'] = True
+                status['required_piece_count_bucket'] = count_bucket(len(major.required))
+                pieces = [None] * len(major.crcs)
+                compatible = (isinstance(previous, RawMap) and
+                              (previous.major.map_id, previous.major.piece_size, previous.major.cells, previous.major.pixel)
+                              == (major.map_id, major.piece_size, major.cells, major.pixel))
+                if compatible:
+                    for index in major.required:
+                        if previous.major.crcs[index] == major.crcs[index]:
+                            pieces[index] = previous.pieces[index]
+                pending = iter(i for i in major.required if pieces[i] is None)
+
+                async def worker():
+                    nonlocal loaded, decoded, failures
+                    for index in pending:
+                        response = await self.command(robot, 'getMinorMap', {
+                            'mid': map_id, 'pieceIndex': index, 'type': 'ol'})
+                        loaded += 1
+                        try:
+                            pieces[index] = await asyncio.to_thread(decode_piece, response.get('data'), major, index)
+                            decoded += 1
+                        except MapFormatError:
+                            failures += 1
+                            raise
+
+                tasks = [asyncio.create_task(worker()) for _ in range(2)]
+                await asyncio.gather(*tasks)
+                verify = await self.command(robot, 'getMajorMap')
+                if object_value(verify.get('data')).get('mid') != map_id:
+                    raise MapChanged('Current map changed')
+                if parse_major(verify.get('data'), map_id) != major:
+                    raise MapChanged('Map changed during build')
+                if compatible and previous.major == major:
+                    result = previous
+                else:
+                    png = await asyncio.to_thread(render_png, major, tuple(pieces))
+                    result = RawMap(major, tuple(pieces), png)
+                status.update(available=True, complete=True, image_generated=True)
+                return result
+        except MapChanged:
+            raise
+        except (CloudError, TimeoutError, MapFormatError, TypeError, OverflowError):
+            return None
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            status['loaded_piece_count_bucket'] = count_bucket(loaded)
+            status['decoded_piece_count_bucket'] = count_bucket(decoded)
+            status['decode_failures_bucket'] = count_bucket(failures)
 
     async def probe_map_transport(self, robot: Robot, map_id: str) -> None:
         """Optional direct comparison, separate from functional map discovery."""

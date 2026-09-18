@@ -27,6 +27,10 @@ class YeediMapImage(YeediEntity, ImageEntity):
 
     def _current_key(self):
         state = self.coordinator.spatial[self.robot.did]
+        if (super().available and state.metadata_valid and state.active_map and state.raw_map
+                and state.raw_map.major.map_id == state.active_map.map_id
+                and time.monotonic() < state.raw_valid_until):
+            return ('raw', state.raw_map.major)
         valid = (super().available and state.active_map is not None
                  and state.metadata_valid and state.rooms_valid
                  and time.monotonic() < state.next_map_refresh)
@@ -38,7 +42,12 @@ class YeediMapImage(YeediEntity, ImageEntity):
         key = self._current_key()
         if key != self._render_key:
             self._render_key = key
-            self._svg = render_map(state.rooms, state.robot_position, state.dock_position) if key else None
+            raw = key is not None and len(key) == 2 and key[0] == 'raw' and state.raw_map is not None
+            self._attr_content_type = 'image/png' if raw else 'image/svg+xml'
+            if raw:
+                self._svg = state.raw_map.png
+            else:
+                self._svg = render_map(state.rooms, state.robot_position, state.dock_position) if key else None
             self._attr_image_last_updated = dt_util.utcnow()
 
     @property

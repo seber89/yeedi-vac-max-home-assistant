@@ -1,6 +1,82 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 18. September 2026, 0.2.0-beta.5. Ältere Abschnitte halten die damaligen Befunde fest.
+Stand: 18. September 2026, 0.2.0-beta.6. Ältere Abschnitte halten die damaligen Befunde fest.
+
+## Beta 6: eigenständiger funktionaler Legacy-Rasterpfad
+
+Hardwaremeldung Beta 5: MajorMap liefert positive numerische Rasterfelder und
+33–64 CRC-Tokens; zwei direkte MinorMap-Antworten enthalten nichtleere ASCII- /
+Base64-kompatible pieceValue-Strings. Das belegt den Transport, noch nicht den
+nachfolgenden Decoder oder das gerenderte Bild auf diesem Gerät.
+
+### Formatfakten und Clean Room
+
+Gezielte Protokollanalyse des bereits gepinnten
+[mapTemplate.js (f1ae56e)](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/mapTemplate.js)
+belegt folgende Datenformat-Eigenschaften des Legacy-Pfads:
+
+- MajorMap-Rastermaße: Piece-Dimensionen mal Zellenanzahl; nullbasierte
+  Piece-Liste. Im quadratischen Raster läuft die Y-Zelle zuerst, dann X.
+- Lokale Pixel sind spaltenweise gespeichert (Y läuft zuerst). Die Anzeige hat
+  ihren Ursprung oben links; Geräte-Y wächst nach oben.
+- Palette: 0 unbekannt, 1 Boden, 2 Wand, 3 Teppich. Andere Werte werden hier
+  neutral dargestellt; keine Interpretation als WLAN-/Sonderdaten.
+- Base64 kapselt Legacy-LZMA mit 9-Byte-Header: ein Properties-Byte, vier Bytes
+  Little-Endian Dictionary-Größe und vier Bytes Little-Endian Ausgabelänge,
+  danach der komprimierte Stream. Standard LZMA-alone hat stattdessen eine
+  acht Byte breite Ausgabelänge. Es wird nur dieses belegte Format akzeptiert,
+  kein Zstd/XZ/gzip-Fallback und keine Codec-Erkennung durch Probieren.
+
+Keine Klassen, Decoder, Renderer, Manager, Tests oder Fixtures übernommen.
+`raw_map.py` ist eine originäre Implementierung dieses Datenformats mit
+[Python lzma](https://docs.python.org/3/library/lzma.html), Base64 und einem
+kleinen eigenen indexed-PNG-Writer (`struct`/`zlib`, nur Standardbibliothek).
+PNG-Chunk-Prüfsummen gehören zum PNG-Container, nicht zu einer geratenen
+Yeedi-CRC-Prüfung. Vendor-CRCs dienen nur als private Generationskennungen.
+
+### Grenzen und atomare Veröffentlichung
+
+Map-ID muss exakt zur aktiven validierten ID passen. Positive ganzzahlige
+Piece-Seiten bis 256, Zellseiten bis 16, Gesamtfläche maximal 1024²; Pixelmaß
+positiv/endlich bis 1000. Beide Seiten müssen jeweils gleich sein: rechteckige
+Layouts sind aus den gesichteten Legacy-Fakten nicht eindeutig ableitbar und
+werden ausdrücklich nicht geraten. CRC-Liste exakt Zellprodukt lang, maximal
+8192 Zeichen, nur unsigned 32-bit-Dezimalwerte. Empty-Sentinel unverändert.
+
+Strenges kanonisches Base64, höchstens 512 KiB encodiert pro Piece, beschränkte
+Dictionary-Größe (4 KiB–16 MiB), Decoder-Memorylimit 32 MiB. Header und tatsächliche
+Ausgabe müssen exakt Piece-Seite² Bytes beschreiben, vollständiges Stream-Ende,
+keine nachgestellten Bytes. Unbekannte oder unvollständige Daten: keine Raw-Karte.
+Die Quadrat-Beschränkung und strikte Headerprüfung sind bewusst konservativ;
+eine abweichende echte Antwort erfordert einen gezielten weiteren Hardwarebefund.
+
+Zwei Worker, maximal zwei Requests gleichzeitig, insgesamt 75 Sekunden. Bei
+Fehler/Timeout/HA-Abbruch werden ausstehende Worker abgebrochen und abgewartet.
+Begrenzte lokale Dekompression/PNG-Erzeugung läuft außerhalb des HA-Eventloops.
+Keine eigenen Write-Retries oder Steuerbefehle. Nach allen Pieces wird MajorMap
+erneut gelesen: Map-ID, Dimensionen, Skalierung und CRC-Liste müssen identisch
+bleiben. Bei Wechsel wird der gesamte Kandidat verworfen und kein altes Raw-Bild
+beibehalten. Eine externe Änderung des Coordinator-State verhindert ebenfalls
+die Veröffentlichung. Kein automatisches Zusammenraten verschiedener Generationen.
+
+RawMap enthält ausschließlich im Speicher validierte Pieces, Metadaten und PNG.
+Das Bild wird unabhängig von Room-Polygongültigkeit und Positionsverfügbarkeit
+bevorzugt bereitgestellt, ohne Overlays. Keine eigene Cloudabfrage der Image-Entity.
+PNG maximal 2 MiB; leere Außenränder werden abgeschnitten. Keine Text-/ID-Metadaten.
+
+Stündlicher erfolgreicher Raw-Refresh; gleiche Map/Dimensionen/Skalierung erlauben
+Wiederverwendung von Pieces mit identischem CRC. Bei Fehler drei Minuten Backoff,
+vorherige vollständige Karte höchstens drei Minuten derselben Map-ID; wiederholte
+Fehler verlängern die Bildfrist nicht. Neue Map-ID leert den Raw-State vor dem Laden.
+Normaler Map-/Room-Cache und sämtliche Write-Pfade bleiben unabhängig/unverändert.
+Die zusätzliche Beta-5-Probe wird nicht mehr automatisch aufgerufen; deren reine
+Hilfsfunktionen/Tests bleiben für Regressionen erhalten. MQTT bleibt deaktiviert.
+
+`raw_map` exportiert nur available/complete/major_valid/image_generated und
+Bucketwerte für required/loaded/decoded/decode_failures (0, 1, 2–8, 9–32, 33–64, >64).
+Loaded/decoded zählen neue Downloads dieses Versuchs, nicht Cache-Treffer. Bei
+kurzem Fehler-Grace kann complete weiterhin die letzte gültige Karte beschreiben.
+Keine IDs, CRC-Werte, Indizes, Dimensionswerte, Bytes oder Bildinhalte in Diagnostics.
 
 ## Beta 5: Direct-Piece-Diagnose; MQTT bewusst nicht gestartet
 

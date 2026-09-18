@@ -1,6 +1,22 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-beta.5 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-beta.6 auf feature/rooms-position-map; kein Merge nach main.
+
+## Beta 6
+
+374 Tests bestanden (316 bisherige + 58 neue synthetische Fälle). validate.py:
+PASS, 34 Python / 5 JSON. Eine externe HA/aiohttp-DeprecationWarning.
+Geprüft: Major-Grenzen/Typen, Sentinel, striktes Base64/Legacy-LZMA, Output- und
+Dictionary-Limits, fehlende/überschüssige/trunkierte Daten, Piece-Identität,
+spaltenweise Rasteranordnung mit asymmetrischen eigenen Testpixeln, PNG-Chunks
+und Checksummen, vollständige Veröffentlichung, maximal zwei aktive Requests,
+alle benötigten Pieces, Cache-Wiederverwendung, nur geänderte Pieces, neue Map-ID,
+Generationswechsel während des Ladens, Deadline/Cancellation mit Worker-Cleanup,
+Fehler-Grace ohne Fristverlängerung, unabhängige Basissteuerung, PNG ohne Räume
+oder Position, Render-Cache, Reload, Privacy und keine automatischen Beta-5-Probes.
+Alte Alpha-6-/Beta-4-Testclients isolieren den separat geprüften Raw-Loader;
+keine alten Assertions oder Tests entfernt. Compile/import und Manifest zusätzlich
+geprüft. Keine neue Dependency. Decoder/Bild auf Hardware noch nicht validiert.
 
 ## Beta 5
 

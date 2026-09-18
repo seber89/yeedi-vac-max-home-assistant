@@ -1,6 +1,46 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-beta.5 — Experimental / Beta / Hardware-Diagnose: Direct Major/Minor Map. Noch nicht gemergt.**
+**0.2.0-beta.6 — Experimental / Beta / Hardware-Test: Direct Raw Map. Noch nicht gemergt.**
+
+## Beta 6: vollständige Direct-MajorMap-/MinorMap-Karte
+
+Beta 5 hat laut Hardwaretest die direkte Piece-Liste und nichtleere MinorMap-
+Payloads bestätigt. Beta 6 ergänzt einen eigenständig geschriebenen Legacy-LZMA-
+Decoder und kompakten PNG-Renderer ausschließlich mit der Python-Standardbibliothek.
+Die tatsächliche Decodierung und Darstellung müssen jetzt auf Hardware geprüft werden.
+MQTT bleibt deaktiviert und ist für diesen direkten Pfad nicht erforderlich.
+
+- Alle verwendeten Pieces werden geladen, maximal zwei Requests gleichzeitig.
+  Strenge Base64-, Identitäts-, Größen- und LZMA-Prüfung; kein Codec-Raten.
+- Nur belegte quadratische Legacy-Raster werden akzeptiert. Begrenzte Dimensionen,
+  höchstens 1.048.576 Pixel; unbekannte Layouts werden sicher abgelehnt.
+- Veröffentlichung erst bei vollständiger Karte und unveränderter MajorMap-
+  Generation nach dem Laden. Keine halbfertigen Karten.
+- Die bestehende `image.*_map` liefert bevorzugt PNG, auch ohne Raum-Polygone
+  oder Roboterposition. Helle Fläche, dunkle Wände, neutraler unbekannter Bereich.
+  Keine Robot-/Dock-Overlays ohne validierte Koordinatentransformation.
+  Der bestehende SVG-Pfad bleibt als Fallback für gültige Raum-Polygone erhalten.
+- Nur Speicher-Cache: stündliche Prüfung, unveränderte Pieces wiederverwenden,
+  nur neue/geänderte Pieces nachladen. Bei neuer Map-ID sofort verwerfen.
+  Bei Fehler höchstens drei Minuten alte vollständige Karte derselben Map;
+  weitere Fehler verlängern diese Frist nicht. Fehler-Backoff drei Minuten.
+- Raw-Ladevorgang maximal 75 Sekunden insgesamt, bestehende sichere Read-Retries.
+  Der vorhandene Command-Lock bleibt erhalten; ein räumlicher Refresh kann
+  wartende Bedienbefehle verzögern. Keine zusätzlichen Beta-5-MinorMap-Probes.
+  Die vorherige reine Outline-Strukturprobe bleibt separat erhalten.
+- `raw_map` in Diagnostics enthält nur Flags und grobe Piece-Anzahlklassen.
+  Keine Map-ID, CRCs, Piece-Indizes, Pixel, Bilddaten oder Credentials.
+
+Raumreinigung und Basissteuerung, Room-Lifecycle, Geräteidentität und SVG-Renderer
+bleiben unverändert. Keine neue Abhängigkeit, keine Dateien mit Karteninhalt.
+
+**Hardwaretest:** Beta 6 über HACS installieren → HA vollständig neu starten →
+Robbi angedockt lassen → 2–3 Minuten warten (bei Timeouts ggf. länger) →
+`image.wohnzimmer_robbi_map` prüfen. Bei verfügbarer Karte Screenshot machen;
+zusätzlich Diagnose herunterladen. Noch kein Saugtest nötig.
+
+Die folgenden Abschnitte dokumentieren frühere Versionen; Beta 6 ersetzt die
+automatische Zwei-Piece-Transportprobe durch den funktionalen Kartenlader.
 
 ## Beta 5: begrenzte Direct-HTTPS-Transportdiagnose
 

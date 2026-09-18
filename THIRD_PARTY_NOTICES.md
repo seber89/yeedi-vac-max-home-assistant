@@ -27,6 +27,12 @@ for this Yeedi setup is not sufficiently verified (see docs/PROTOCOL.md).
 Names identify interoperability targets only. No official brand assets are
 included; the existing icon is an original drawing.
 
+Beta 6 uses only format facts from the same pinned mapTemplate.js: the short
+Legacy-LZMA header, square column-major tile/pixel layout and basic palette
+semantics. No decoder/renderer/manager code or fixtures are ported. The bounded
+Python decoder adapter and PNG writer are original; decompression uses Python's
+standard-library lzma module. No new runtime dependency or MQTT implementation.
+
 Unofficial community integration for Home Assistant.
 Not affiliated with, maintained by, or endorsed by Yeedi,
 Ecovacs or Home Assistant.
