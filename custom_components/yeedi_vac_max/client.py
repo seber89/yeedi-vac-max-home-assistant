@@ -23,6 +23,7 @@ from .structure_diagnostics import COMMANDS, LEGACY_COMMANDS, response_structure
 from .geometry_diagnostics import value_format, aggregate_formats
 from .transport_diagnostics import empty_probe, major_shape, minor_shape, piece_indices
 from .raw_map import RawMap, MapFormatError, MapChanged, parse_major, decode_piece, render_png, count_bucket
+from .raw_map import MapRenderError, pixel_buckets
 from .map_data import (YeediMap, YeediRoom, RobotPosition, DockPosition,
                        identifier, position, polygon, fallback_name)
 
@@ -425,9 +426,11 @@ class YeediClient:
     async def load_raw_map(self, robot, map_id, previous, status):
         """Optional atomic build, two workers, bounded budget, no surviving tasks."""
         if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == '0':
+            status['failure_stage'] = 'major_initial'
             return None
         loaded = decoded = failures = 0
         tasks = []
+        stage = 'major_initial'
         try:
             async with asyncio.timeout(RAW_MAP_TIMEOUT):
                 body = await self.command(robot, 'getMajorMap')
@@ -446,6 +449,7 @@ class YeediClient:
                         if previous.major.crcs[index] == major.crcs[index]:
                             pieces[index] = previous.pieces[index]
                 pending = iter(i for i in major.required if pieces[i] is None)
+                stage = 'piece_download'
 
                 async def worker():
                     nonlocal loaded, decoded, failures
@@ -458,25 +462,44 @@ class YeediClient:
                             decoded += 1
                         except MapFormatError:
                             failures += 1
+                            status['failure_stage'] = 'piece_decode'
+                            raise
+                        except Exception:
+                            status['failure_stage'] = 'unexpected'
                             raise
 
                 tasks = [asyncio.create_task(worker()) for _ in range(2)]
                 await asyncio.gather(*tasks)
+                status.update(pixel_buckets(pieces))
+                stage = 'unexpected'  # Verification transport/parse failure, not a proven change.
                 verify = await self.command(robot, 'getMajorMap')
                 if object_value(verify.get('data')).get('mid') != map_id:
                     raise MapChanged('Current map changed')
                 if parse_major(verify.get('data'), map_id) != major:
                     raise MapChanged('Map changed during build')
+                status['generation_verified'] = True
                 if compatible and previous.major == major:
                     result = previous
                 else:
+                    status['render_attempted'] = True
+                    stage = 'png_generation'
                     png = await asyncio.to_thread(render_png, major, tuple(pieces))
+                    status['raster_assembled'] = True
                     result = RawMap(major, tuple(pieces), png)
-                status.update(available=True, complete=True, image_generated=True)
+                status.update(available=True, complete=True, image_generated=True, failure_stage='none')
                 return result
         except MapChanged:
+            status['failure_stage'] = 'generation_changed'
             raise
+        except MapRenderError as err:
+            status.update(failure_stage=err.stage, raster_assembled=err.assembled)
+            return None
         except (CloudError, TimeoutError, MapFormatError, TypeError, OverflowError):
+            if status['failure_stage'] == 'none':
+                status['failure_stage'] = stage
+            return None
+        except Exception:
+            status['failure_stage'] = 'unexpected'
             return None
         finally:
             for task in tasks:

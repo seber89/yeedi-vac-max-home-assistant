@@ -9,14 +9,14 @@ def raw_diagnostics(state):
     available = bool(state.metadata_valid and state.active_map and state.raw_map
                      and state.active_map.map_id == state.raw_map.major.map_id
                      and time.monotonic() < state.raw_valid_until)
-    result.update(available=available, complete=available, image_generated=available)
+    result.update(available=available, complete=available)
     return result
 
 
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return {
-        "integration_version": "0.2.0-beta.6",
+        "integration_version": "0.2.0-beta.6.1",
         "raw_map": [raw_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
         "target_class": "04z443",
         "region": "DE",

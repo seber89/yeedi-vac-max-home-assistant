@@ -27,6 +27,15 @@ class MapChanged(MapFormatError):
     """Never retain an old image after observing a changed generation."""
 
 
+class MapRenderError(MapFormatError):
+    """Only fixed stage labels, never payload or an underlying exception text."""
+
+    def __init__(self, stage, assembled=False):
+        super().__init__('Map rendering failed')
+        self.stage = stage
+        self.assembled = assembled
+
+
 @dataclass(frozen=True, repr=False)
 class Major:
     map_id: str
@@ -129,17 +138,28 @@ def assemble(major, pieces):
         tile_x, tile_y = divmod(index, major.cells)
         for x in range(size):
             for y in range(size):
-                # Palette facts: 0 unknown, 1 floor, 2 wall, 3 carpet.
+                # Keep every nonzero pixel as geometry, including unhandled 5–10.
                 raw = piece[x * size + y]
-                color = raw if raw in (1, 2, 3) else 0
+                color = raw if raw <= 3 else 4 if raw == 4 or raw > 10 else 5
                 raster[(side - 1 - (tile_y * size + y)) * side + tile_x * size + x] = color
     return bytes(raster)
 
 
 def render_png(major, pieces):
     """Small original indexed PNG writer; no metadata, IDs or external assets."""
-    raster = assemble(major, pieces)
-    side = major.side
+    try:
+        raster = assemble(major, pieces)
+    except Exception:
+        raise MapRenderError('raster_assembly') from None
+    if not any(raster):
+        raise MapRenderError('no_visible_pixels', True)
+    try:
+        return _encode_png(raster, major.side)
+    except Exception:
+        raise MapRenderError('png_generation', True) from None
+
+
+def _encode_png(raster, side):
     # Crop empty borders for a useful dashboard image, preserving actual pixels.
     min_x = min_y = side
     max_x = max_y = -1
@@ -161,7 +181,8 @@ def render_png(major, pieces):
 
     png = (b'\x89PNG\r\n\x1a\n'
            + chunk(b'IHDR', struct.pack('>IIBBBBB', right-left, bottom-top, 8, 3, 0, 0, 0))
-           + chunk(b'PLTE', bytes((239,242,245, 193,212,220, 35,45,55, 161,180,193)))
+           + chunk(b'PLTE', bytes((239,242,245, 193,212,220, 35,45,55, 161,180,193,
+                                  183,199,205, 147,154,161)))
            + chunk(b'IDAT', zlib.compress(scanlines, 6)) + chunk(b'IEND', b''))
     if len(png) > 2 * MAX_PIXELS:
         raise MapFormatError('Oversized image')
@@ -175,4 +196,30 @@ def count_bucket(count):
 def safe_status():
     return dict(available=False, complete=False, major_valid=False,
                 required_piece_count_bucket='0', loaded_piece_count_bucket='0',
-                decoded_piece_count_bucket='0', decode_failures_bucket='0', image_generated=False)
+                decoded_piece_count_bucket='0', decode_failures_bucket='0', image_generated=False,
+                generation_verified=False, render_attempted=False, raster_assembled=False,
+                failure_stage='none', total_nonzero_pixels_bucket='0',
+                known_renderable_pixels_bucket='0', unhandled_nonzero_pixels_bucket='0')
+
+
+def pixel_buckets(pieces):
+    """Aggregate only; no palette values, exact counts or piece association leave here."""
+    nonzero = known = unhandled = 0
+    for piece in pieces:
+        if piece is not None:
+            for value in piece:
+                if value:
+                    nonzero += 1
+                    if value <= 4 or value > 10:
+                        known += 1
+                    else:
+                        unhandled += 1
+
+    def bucket(count):
+        return next((label for maximum, label in (
+            (0,'0'), (1,'1'), (8,'2-8'), (32,'9-32'), (64,'33-64'),
+            (256,'65-256'), (1024,'257-1024')) if count <= maximum), '>1024')
+
+    return dict(total_nonzero_pixels_bucket=bucket(nonzero),
+                known_renderable_pixels_bucket=bucket(known),
+                unhandled_nonzero_pixels_bucket=bucket(unhandled))

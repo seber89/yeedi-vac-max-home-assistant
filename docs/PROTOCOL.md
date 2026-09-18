@@ -1,6 +1,32 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 18. September 2026, 0.2.0-beta.6. Ältere Abschnitte halten die damaligen Befunde fest.
+Stand: 0.2.0-beta.6.1. Ältere Abschnitte halten die damaligen Befunde fest.
+
+## Beta 6.1: Palette und Final-Stages
+
+Die bereits gepinnte Legacy-Formatquelle (mapTemplate.js, f1ae56e; Link unten)
+belegt neben 1/2/3 auch 4 sowie >10 als darstellbare Klassen. 5–10 haben dort
+keine spezifische Farbe. Unser eigener Renderer verwendet eigene neutrale
+Farben und behandelt ausnahmslos alle Nonzero-Pixel als Crop-Geometrie.
+Keine fremden Renderer-/Decoder-Algorithmen übernommen. LZMA unverändert.
+
+Neue Stage-Flags: generation_verified erst nach identischer zweiter MajorMap;
+render_attempted nur bei tatsächlichem Rendering (nicht beim PNG-Cachetreffer);
+raster_assembled nach erfolgreichem Zusammenbau. Fehlerlabel ausschließlich:
+none, major_initial, piece_download, piece_decode, generation_changed,
+raster_assembly, no_visible_pixels, png_generation, unexpected.
+Verifikations-Transport-/ungültige Antwortfehler zählen als unexpected, nicht
+als behaupteter Generationswechsel. Tatsächliche Unterschiede bleiben strikt
+generation_changed; keine Veröffentlichung. Keine Exception-Texte exportiert.
+
+Nonzero-, bekannte (1–4, >10) und sonstige Nonzero-Pixel (5–10) werden über alle
+gültigen Pieces einschließlich Cachetreffern aggregiert. Nur Buckets 0, 1, 2–8,
+9–32, 33–64, 65–256, 257–1024, >1024 werden ausgegeben. Keine Histogramme oder
+Piece-Zuordnung. Nur ein vollständig nulles Raster darf no_visible_pixels sein.
+PNG-Fehler nach erfolgreichem Assemble behalten raster_assembled=true.
+Die Stage-Flags betreffen den aktuellen Versuch; available/complete dürfen
+während der unveränderten kurzen Fehler-Grace das vorherige gültige Bild anzeigen.
+image_generated wird dabei nicht mehr durch available überschrieben.
 
 ## Beta 6: eigenständiger funktionaler Legacy-Rasterpfad
 

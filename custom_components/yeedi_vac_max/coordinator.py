@@ -196,11 +196,13 @@ class YeediCoordinator(DataUpdateCoordinator):
             result = None
         except Exception:
             # No logging: an unexpected exception might contain private data.
+            status['failure_stage'] = 'unexpected'
             result = None
         if state.active_map != selected or not state.metadata_valid:
             state.raw_map = None
             state.raw_valid_until = 0
             state.raw_status = safe_status()
+            state.raw_status['failure_stage'] = 'generation_changed'
             return
         now = time.monotonic()
         if isinstance(result, RawMap) and result.major.map_id == selected.map_id:

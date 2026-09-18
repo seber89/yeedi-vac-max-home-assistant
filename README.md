@@ -1,6 +1,31 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-beta.6 — Experimental / Beta / Hardware-Test: Direct Raw Map. Noch nicht gemergt.**
+**0.2.0-beta.6.1 — Experimental / Beta / Hardware-Test: Raw-Map-Finalisierung. Noch nicht gemergt.**
+
+## Beta 6.1: vollständige Nonzero-Palette und eindeutige Finaldiagnose
+
+Der Hardwarebefund meldet viele erfolgreich geladene/decodierte Pieces ohne
+Decode-Fehler, aber noch kein Bild. Die Buckets allein beweisen nicht die genaue
+Gleichheit der Piece-Anzahlen oder den letzten Abbruchschritt. Ein konkreter
+Codefehler ist behoben: Beta 6 hatte alle Pixel außerhalb 1/2/3 auf Hintergrund
+reduziert. Nun bleiben 4 und >10 sichtbar; 5–10 werden neutral dargestellt.
+Jeder Nonzero-Pixel zählt zum Zuschneiden. Nur ein wirklich vollständig nulles
+Raster gilt als `no_visible_pixels`. Eigene Farben, kein fremder Renderer.
+
+`raw_map` ergänzt `generation_verified`, `render_attempted`, `raster_assembled`
+und einen festen `failure_stage`. Pixelzählungen erscheinen ausschließlich als
+grobe Gesamt-Buckets: nonzero, bekannt darstellbar, nonzero ohne spezifische
+Klasse. Keine Werte, Histogramme, IDs oder Koordinaten.
+
+Die zweite MajorMap-Prüfung bleibt strikt. Decoder, Transport, zwei Worker,
+Cache, Raumreinigung, Image-API und Steuerung unverändert. Bei Cache-Wiederverwendung
+bleibt `render_attempted=false`; das vorhandene validierte Bild wird benutzt.
+Bei Fehler-Grace beschreiben available/complete ggf. die alte vollständige Karte,
+die neuen Stage-Flags und image_generated dagegen den aktuellen Ladeversuch.
+
+**Hardwaretest:** Beta 6.1 installieren → HA vollständig neu starten → Robbi
+angedockt lassen → 2–3 Minuten warten → Map-Entity prüfen. Wenn weiterhin
+unavailable, neue Diagnose herunterladen. Kein Saugtest nötig.
 
 ## Beta 6: vollständige Direct-MajorMap-/MinorMap-Karte
 

@@ -1,6 +1,17 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-beta.6 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-beta.6.1 auf feature/rooms-position-map; kein Merge nach main.
+
+## Beta 6.1
+
+415 Tests bestanden: alle bisherigen 374 plus 41 neue synthetische Fälle.
+validate.py: PASS, 35 Python / 5 JSON. Compile-/Import- und Manifestprüfung PASS.
+Eine externe HA/aiohttp-DeprecationWarning; keine Tests deaktiviert.
+Geprüft: 1/2/3 unverändert, 4, 5–10 und >10 sichtbar und Crop-relevant,
+Nullraster, Generationswechsel bei ID/Dimensionen/CRC-Liste, unveränderte zweite
+Prüfung, präzise Stage-Flags, Assembly-/PNG-Fehlerinjektion, alle Pixel-Buckets,
+Privacy und Diagnose des aktuellen Fehlers trotz vorherigem Cache-Bild.
+Neue Palette/Finalisierung auf echter Hardware noch nicht bestätigt.
 
 ## Beta 6
 
