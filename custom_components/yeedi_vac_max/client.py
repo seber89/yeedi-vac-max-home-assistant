@@ -414,6 +414,7 @@ class YeediClient:
         subsets = data.get("subsets")
         if not isinstance(subsets, list) or len(subsets) > 100:
             raise CloudError("Invalid room list")
+        msid = identifier(data.get("msid"))
         rooms = {}
         for item in subsets:
             if not isinstance(item, dict):
@@ -425,8 +426,10 @@ class YeediClient:
             observed_format = None
             if "value" not in item or not item.get("name"):
                 try:
-                    response = await self.command(robot, "getMapSubSet", {
-                        "mid": map_id, "type": "ar", "mssid": rid})
+                    request = {"mid": map_id, "type": "ar", "mssid": rid}
+                    if msid is not None:
+                        request["msid"] = msid
+                    response = await self.command(robot, "getMapSubSet", request)
                     candidate = object_value(response.get("data"))
                     if (identifier(candidate.get("mssid")) == rid
                             and identifier(candidate.get("mid", map_id)) == map_id):

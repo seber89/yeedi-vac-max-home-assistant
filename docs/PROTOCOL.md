@@ -1,6 +1,19 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 17. September 2026, 0.2.0-beta.2. Ältere Abschnitte halten die damaligen Befunde fest.
+Stand: 18. September 2026, 0.2.0-beta.3. Ältere Abschnitte halten die damaligen Befunde fest.
+
+## Beta 3: MapSet-spezifische msid
+
+Owner-reported Beta-2-Befund: zwei akzeptierte Raumdetailantworten mit leeren
+value-Strings (empty=true, length_bucket=0), kein Polygon. MapSet.data enthält
+msid als String. Laut bereitgestellter V1-Interoperabilitätsinformation akzeptiert
+getMapSubSet neben mid/type/mssid auch die msid des übergeordneten MapSets.
+Eigenständige minimale Umsetzung: identifier(data.get("msid")), bei gültigem
+Ergebnis zusätzliches Request-Feld msid für alle regulären Detailreads dieses
+Aufrufs. Keine Speicherung über MapSet-Aufrufe hinweg; ungültig/fehlend bleibt
+das Feld aus. Keine Änderung am GetMapSet-Request oder an der Response-Verarbeitung.
+Kein fremder Implementierungscode verwendet. Keine IDs oder Rohwerte in Diagnosen.
+Ob damit Geometrie geliefert wird, muss der Hardwaretest erst bestätigen.
 
 ## Beta 2: ausschließlich Formatklassifikation
 

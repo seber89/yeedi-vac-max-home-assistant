@@ -4,7 +4,7 @@
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return {
-        "integration_version": "0.2.0-beta.2",
+        "integration_version": "0.2.0-beta.3",
         "target_class": "04z443",
         "region": "DE",
         "last_update_success": coordinator.last_update_success,

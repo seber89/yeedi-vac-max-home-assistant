@@ -1,6 +1,16 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-beta.2 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-beta.3 auf feature/rooms-position-map; kein Merge nach main.
+
+## Beta 3
+
+249 Tests bestanden (alle bisherigen 231 plus 18 neue synthetische Fälle).
+validate.py: PASS, 29 Python / 5 JSON. Eine externe HA/aiohttp-Warnung.
+Geprüft: validierte MapSet-msid in allen regulären Detailrequests, exakte Felder,
+fehlende/ungültige IDs ohne erfundenen Fallback, keine Wiederverwendung einer
+vorherigen MapSet-msid, leere und unbekannte Werte ohne Polygon, bestehender
+Parser für nichtleere XY-/JSON-Werte sowie Diagnose-/Log-Privacy. Keine Tests
+deaktiviert, keine Parser-/Renderer-/Lifecycle-/Command-Änderungen. Hardwaretest offen.
 
 ## Beta 2
 

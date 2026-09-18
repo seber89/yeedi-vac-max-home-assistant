@@ -1,6 +1,24 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-beta.2 — Experimental / Beta / Formatdiagnose. Noch nicht gemergt.**
+**0.2.0-beta.3 — Experimental / Beta / Hardware-Test: MapSubSet-msid. Noch nicht gemergt.**
+
+## Beta 3: belegte MapSet-msid an Raumdetails weiterreichen
+
+Beta 2 zeigt für beide Räume einen leeren value-String, nicht etwa einen belegten
+unbekannten Codec. GetMapSet liefert eine msid. Beta 3 validiert diese mit dem
+bestehenden identifier()-Helper und sendet sie, sofern gültig, zusätzlich bei
+jedem regulären getMapSubSet dieses MapSets. Ohne gültige msid bleibt der bisherige
+Request unverändert. Keine erfundene ID und keine weiteren neuen Felder.
+Die öffentliche V1-Protokollinformation stammt aus dem Auftrag; kein fremder Code
+wurde übernommen. Parser, Formatdiagnose, Queue, Raumreinigung, Lifecycle und
+SVG bleiben unverändert. Nichtleere Werte laufen durch den bestehenden Parser;
+leere/unverständliche Werte ergeben weiterhin keine erfundene Geometrie.
+
+**Hardwaretest:** Beta 3 über HACS installieren, Home Assistant vollständig neu
+starten, den räumlichen Refresh abwarten und prüfen, ob
+`image.wohnzimmer_robbi_map` verfügbar wird. Danach Diagnose herunterladen und
+bereitstellen; keine Rohantworten/IDs/Koordinaten. Noch kein Saugtest erforderlich.
+Der Erfolg dieses Request-Fixes am echten Gerät ist noch nicht bestätigt.
 
 ## Beta 2: privacy-safe Raumgeometrie-Formatdiagnose
 
