@@ -21,8 +21,16 @@ aiohttp is supplied by Home Assistant; no new runtime dependencies are added.
 Beta 5 additionally checks the same pinned references for MQTT connection/topic
 facts and the MajorMap CRC-list / empty-piece sentinel / MinorMap request fields.
 No algorithms, decoders, renderers, classes, fixtures or tests are ported.
-MQTT is intentionally not implemented: a secure complete connection configuration
+In Beta 5, MQTT was intentionally not implemented: a secure complete connection configuration
 for this Yeedi setup is not sufficiently verified (see docs/PROTOCOL.md).
+
+Beta 6.3 adds an original, isolated passive MQTT diagnostic after verification of
+session/topic facts and explicit owner approval of the scoped TLS exception.
+MQTT framing follows the public OASIS MQTT 3.1.1 specification, not a copied
+client implementation. Python asyncio/ssl/lzma only; no new runtime dependency.
+aiomqtt was evaluated but is not shipped or required. No foreign dispatcher,
+MQTT classes, decoder, tests or fixtures are included. See docs/PROTOCOL.md for
+the precise scope, security limitation and protocol sources.
 
 Names identify interoperability targets only. No official brand assets are
 included; the existing icon is an original drawing.

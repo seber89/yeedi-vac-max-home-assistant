@@ -84,6 +84,7 @@ async def test_entities_and_control_payloads(hass):
 async def test_setup_unload(hass):
     from custom_components.yeedi_vac_max import async_setup_entry, async_unload_entry
     entry = SimpleNamespace(data={"username": "a", "password": "b", "country": "DE", "device_id": "local-id"})
+    entry.async_create_background_task = lambda host, coro, name: host.async_create_background_task(coro, name)
     client = MagicMock()
     client.devices = AsyncMock(return_value=[Robot("vac", "res", "Vac")])
     coordinator = MagicMock()

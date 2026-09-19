@@ -1,6 +1,20 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-beta.6.2 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-beta.6.3 auf feature/rooms-position-map; kein Merge nach main.
+
+## Beta 6.3
+
+530 Tests bestanden: alle 446 bisherigen plus 84 neue synthetische Fälle.
+validate.py: PASS, 41 Python / 5 JSON. Compile-/Import- und Manifestprüfung PASS.
+Geprüft: fester EU-Broker/TLS 443, isolierter SSLContext, unveränderte normale
+Zertifikatsprüfung, sessionbasierte Identität ohne Login, ATR-Komposition und
+Topic-Injection-Schutz, MQTT-Level 4 / QoS 0 / Clean Session, CONNACK/SUBACK,
+Ablehnung, Größenlimits/Framing, getrennte Null-/Nonzero-/Distinct-Klassifikation,
+privacy-safe Export, Abbruch während Connect/CONNACK/Empfang, Reader-Task-Cleanup,
+Socket-Abbruch bei Cleanup-Fehlern, reale HA-Shutdown-Taskbindung, kein Reconnect
+oder Publish, unveränderter Coordinator bei MQTT-Fehlern. Kein Test deaktiviert.
+Eine externe HA/aiohttp-DeprecationWarning. Kein echter MQTT-Login im lokalen Test;
+Hardwarevalidierung steht aus. Keine neuen Runtime-Abhängigkeiten im Manifest.
 
 ## Beta 6.2
 

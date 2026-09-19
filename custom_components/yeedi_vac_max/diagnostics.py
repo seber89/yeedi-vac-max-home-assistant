@@ -3,6 +3,7 @@ import time
 
 from .raw_map import safe_status
 from .zero_pixel_diagnostics import safe_export
+from .mqtt_diagnostics import empty_probe, comparison
 
 
 def raw_diagnostics(state):
@@ -16,8 +17,15 @@ def raw_diagnostics(state):
 
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
+    listener = getattr(coordinator, 'mqtt_probe', None)
+    mqtt = [listener.snapshot(robot) if listener is not None else empty_probe()
+            for robot in coordinator.robots]
     return {
-        "integration_version": "0.2.0-beta.6.2",
+        "integration_version": "0.2.0-beta.6.3",
+        "mqtt_live_map_probe": mqtt,
+        "map_transport_comparison": [comparison(
+            safe_export(coordinator.spatial[robot.did].raw_status.get('zero_pixel_probe')), probe)
+            for robot, probe in zip(coordinator.robots, mqtt)],
         "zero_pixel_probe": [safe_export(coordinator.spatial[robot.did].raw_status.get('zero_pixel_probe'))
                              for robot in coordinator.robots],
         "raw_map": [raw_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],

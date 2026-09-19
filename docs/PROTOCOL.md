@@ -1,6 +1,61 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-beta.6.2. Ältere Abschnitte halten die damaligen Befunde fest.
+Stand: 0.2.0-beta.6.3. Ältere Abschnitte halten die damaligen Befunde fest.
+
+## Beta 6.3 — isolierte passive MQTT-Diagnose
+
+Verbindungsfakten: [gepinnter Yeedi-Python-Client, mqtt_client.py](https://github.com/gyordanov/client.py/blob/07d93928a1d556aae711b41335afbddd5bd61551/deebot_client/mqtt_client.py)
+und [öffentliche MQTT-Protokollbeschreibung](https://deebot.readthedocs.io/advanced/protocols/mqtt/).
+EU: mq-eu.ecouser.net, TLS/TCP 443; Username = bestehende Portal-userId,
+Passwort = bestehender Portal-Token, Client-ID = userId@ecouser/app-device-id.
+ATR: iot/atr/+/device-id/class/resource/j. Nur bereits gefundene 04z443-Geräte.
+Keine neue Anmeldung, keine geratenen Sessionwerte. Bekannte Commandnamen
+MajorMap/MinorMap/MapInfo/MapSubSet sowie on/get/Get/report-Präfixe werden auf
+feste Namen normalisiert (Protokollfakten aus dem gepinnten JS-Dispatcher).
+JSON ausschließlich body.data; unbekannte Namen/Inhalte werden nicht exportiert.
+
+Das eigenständig geschriebene Wire-Subset folgt dem
+[OASIS MQTT 3.1.1 Standard](https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html):
+CONNECT mit Level 4 / Clean Session, SUBSCRIBE QoS 0 und validierter SUBACK,
+PINGREQ/PINGRESP, DISCONNECT; nur Empfang von QoS-0-PUBLISH. Keine Publish-API,
+keine Will-Nachricht, kein Reconnect, keine P2P-Requests/Subscriptions.
+Keine fremden MQTT-Klassen/Dispatcher/Fixtures portiert.
+
+Bibliotheksprüfung: HA garantiert aiomqtt nicht als allgemeine Abhängigkeit.
+aiomqtt 2.5.0 wurde geprüft; sein Connect läuft in einem Executor-Thread, der bei
+Coroutine-Abbruch nicht unmittelbar beendet wird. Für das ausdrücklich streng
+begrenzte Diagnosefenster wird stattdessen ein schmaler asyncio-Stream-Pfad ohne
+neue Dependency verwendet, keine allgemeine neue Ecovacs-Client-Architektur.
+Framing-/Paketgrößenlimits, höchstens 256 klassifizierte Nachrichten pro Roboter,
+8 vor SUBACK gepufferte Nachrichten und begrenzte Dekompression halten die Probe
+klein. Reader-Task wird abgebrochen/abgewartet, Socket geschlossen/abgebrochen.
+
+TLS-Test ohne Credentials ergab hier fehlendes Zertifikatsvertrauen. Der Besitzer
+hat die isolierte Ausnahme ausdrücklich genehmigt. Nur dieser feste Broker
+erhält einen eigenen SSLContext mit CERT_NONE; kein globaler TLS-/HTTPS-Eingriff.
+Verschlüsselung ohne verifizierte Broker-Identität schützt nicht vor aktivem
+Man-in-the-Middle/Token-Diebstahl. Das ist keine Empfehlung für Dauerbetrieb.
+
+Start vor erstem Coordinator-Refresh, maximal 85 Sekunden inklusive Verbindungs-
+aufbau; begrenzter Cleanup bleibt im 90-Sekunden-Budget. Connect maximal 10s,
+SUBACK maximal 5s, TLS-Handshake maximal 5s. Jeder Transport-/JSON-Fehler beendet
+die Probe ohne Reconnect und ohne Exceptiontexte. Fehlgeschlagene Piece-Decodes
+werden als nicht erfolgreich klassifiziert, niemals mit anderen Codecs versucht.
+HA-Config-Entry-Hintergrundtask wird bei Unload/Shutdown beendet; Einrichtung und
+HTTPS-Coordinator bleiben unabhängig. Keine extra Map-Befehle werden ausgelöst.
+
+MinorMap-Diagnose: begrenzte Base64-/Legacy-LZMA-Prüfung anhand des bereits
+belegten 9-Byte-Headers, maximal 65536 Ausgabebytes / 16MiB Dictionary / 32MiB
+Dekompressorbudget. Dies stellt nur Null/Nonzero und Gleichheit fest, keine
+Geometrievalidierung oder Renderingfreigabe. Die funktionale RawMap-Decodierung
+ist unverändert. Transiente Gleichheits-Digests bleiben intern und werden am
+Fensterende gelöscht; weder Bytes noch Digests werden gespeichert/exportiert.
+Major-CRC-Merkmale beschreiben die zuletzt beobachtete valide Liste; Minor-
+Merkmale aggregieren die begrenzte beobachtete Menge. Die Transportvergleichs-
+flags behaupten weder eine passende Generation noch eine fertige Karte.
+
+Hardwarevalidierung des MQTT-Pfads steht aus. ATR-only ohne Ereignis ist kein
+Negativbeweis für P2P oder Nachrichten außerhalb des kurzen Zeitfensters.
 
 ## Beta 6.2: nur aggregierte Zero-Pixel-Analyse
 

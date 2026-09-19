@@ -1,6 +1,41 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-beta.6.2 — Experimental / Beta / Hardware-Diagnose: Zero-Pixel-Probe. Noch nicht gemergt.**
+**0.2.0-beta.6.3 — Experimental / Beta / Hardware-Diagnose: passiver MQTT-Vergleich. Noch nicht gemergt.**
+
+## Beta 6.3: einmaliges MQTT-Beobachtungsfenster
+
+Der Hardwarebefund aus Beta 6.2 zeigt identische, vollständig leere Direct-HTTPS-
+Pieces bei übereinstimmenden LZMA-Decodern. Beta 6.3 prüft deshalb ausschließlich,
+ob asynchrone MQTT-Map-Nachrichten andere bzw. Nonzero-Pieces enthalten.
+Neue Diagnoseabschnitte: `mqtt_live_map_probe` und `map_transport_comparison`.
+Nur feste Flags, Typen und Anzahl-Buckets; keine Payloads, IDs, Topics, CRCs,
+Koordinaten oder Gleichheits-Fingerprints im Export. Keine MQTT-Kartendarstellung.
+
+**Sicherheitsausnahme nur in dieser experimentellen Diagnose:** Die TLS-
+Zertifikatsprüfung ist nach ausdrücklicher Freigabe ausschließlich im separaten
+Kontext für `mq-eu.ecouser.net:443` deaktiviert. Die Verbindung ist verschlüsselt,
+die Broker-Identität aber nicht verifiziert: Ein aktiver Angreifer könnte den
+Sitzungstoken abfangen. HTTPS und globale Home-Assistant-TLS-Einstellungen bleiben
+unverändert. Nur in einer vertrauenswürdigen Netzwerkumgebung testen.
+
+Pro Config-Entry-Start genau ein Verbindungsversuch mit der vorhandenen Session,
+keine Neuanmeldung, kein Reconnect. Beobachtung maximal 85 Sekunden ab Taskstart,
+danach begrenzter Disconnect/Cleanup (Gesamtbudget unter 90 Sekunden). Fehler,
+Unload oder HA-Shutdown beenden die Probe. Kein dauerhafter MQTT-Dienst, keine
+MQTT-Steuerbefehle, keine zusätzlichen HTTPS-Anfragen. ATR nur für die gefundenen
+Roboter, keine accountweiten Wildcards oder P2P-Subscriptions. Fehlende ATR-
+Nachrichten beweisen daher nicht, dass jeder andere MQTT-Pfad ebenfalls leer ist.
+
+Hardwaretest: Beta 6.3 installieren und HA vollständig neu starten, Robbi zunächst
+angedockt lassen. Optionales kurzes Saugen nur **innerhalb des ersten 85-Sekunden-
+Fensters nach Integrationsstart**, nicht erst nach zwei Minuten; anschließend
+stoppen/andocken. Nach etwa zwei Minuten Diagnose herunterladen. Die Image-Entity
+darf weiter unavailable bleiben. Nicht mehrfach neu starten oder die App parallel
+mit Map-Refreshes belasten. MQTT-Hardwarevalidierung steht noch aus.
+
+Der kleine passive MQTT-3.1.1-Teil verwendet nur Python-Standardbibliotheken.
+Er besitzt keine Publish-Funktion und ersetzt keinen bestehenden Yeedi-Client.
+Die folgenden Abschnitte dokumentieren frühere Entwicklungsstände.
 
 ## Beta 6.2: ausschließlich Zero-Pixel-Ursache eingrenzen
 
