@@ -53,7 +53,7 @@ async def test_config_flow_auth_failure(hass):
 async def test_entities_and_control_payloads(hass):
     coordinator = SimpleNamespace(hass=hass, last_update_success=True,
         data={"vac": {"online": True, "activity": "paused", "battery": 75, "fan_speed": "Normal"}},
-        execute=AsyncMock(), async_contexts=lambda: [])
+        execute=AsyncMock(), rooms={}, async_contexts=lambda: [])
     robot = Robot("vac", "res", "Vac")
     vacuum = YeediVacuum(coordinator, robot)
     assert vacuum.activity == VacuumActivity.PAUSED
@@ -62,6 +62,14 @@ async def test_entities_and_control_payloads(hass):
     coordinator.execute.assert_awaited_with(robot, "clean", {"act": "resume"})
     await vacuum.async_return_to_base()
     coordinator.execute.assert_awaited_with(robot, "charge", {"act": "go"})
+    await vacuum.async_pause()
+    coordinator.execute.assert_awaited_with(robot, "clean", {"act": "pause"})
+    await vacuum.async_stop()
+    coordinator.execute.assert_awaited_with(robot, "clean", {"act": "stop"})
+    coordinator.data["vac"]["activity"] = "idle"
+    await vacuum.async_start()
+    coordinator.execute.assert_awaited_with(robot, "clean", {
+        "act": "start", "type": "auto", "count": 1, "donotClean": 0, "router": "plan"})
     await vacuum.async_set_fan_speed("Max")
     coordinator.execute.assert_awaited_with(robot, "setSpeed", {"speed": 1})
     with pytest.raises(HomeAssistantError):
@@ -76,6 +84,7 @@ async def test_entities_and_control_payloads(hass):
 async def test_setup_unload(hass):
     from custom_components.yeedi_vac_max import async_setup_entry, async_unload_entry
     entry = SimpleNamespace(data={"username": "a", "password": "b", "country": "DE", "device_id": "local-id"})
+    entry.async_create_background_task = lambda host, coro, name: host.async_create_background_task(coro, name)
     client = MagicMock()
     client.devices = AsyncMock(return_value=[Robot("vac", "res", "Vac")])
     coordinator = MagicMock()

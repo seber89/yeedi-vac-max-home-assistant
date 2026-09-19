@@ -1,6 +1,195 @@
-# Prüfprotokoll — 15. September 2026
+# Prüfprotokoll — 16. September 2026
 
-Aktueller Stand nach Umsetzung des direkten Clients.
+Stand 0.2.0-beta.6.4 auf feature/rooms-position-map; kein Merge nach main.
+
+## Beta 6.4
+
+564 Tests bestanden: alle 530 bisherigen plus 34 neue synthetische Fälle.
+validate.py: PASS, 42 Python / 5 JSON. Compile-/Import- und Manifestprüfung PASS.
+Crop in der Mitte und an Kanten, symmetrisches Padding, Translation-Invarianz,
+Zoom-/Ausgabegrenzen, dünne/langgezogene Geometrie, alle vorhandenen Renderfarben,
+Null-/Fehlerraster, PNG-Chunk-CRCs und jede vergrößerte Originalzelle geprüft.
+Raw-Image bleibt ohne Polygone/Positionen verfügbar; keine geratenen Overlays.
+Reload-Test lädt eine neue valide Karte in frischen State; es wird ausdrücklich
+keine Disk-Persistenz behauptet. Bestehende dreiminütige Fehlerfrist und Map-ID-
+Schutz bleiben getestet. Eine externe HA/aiohttp-DeprecationWarning.
+Synthetische PNG-Vorschau visuell geprüft. Kein echter Roboter bedient; neue
+Darstellung muss noch auf Hardware bestätigt werden. Keine Tests deaktiviert.
+
+## Beta 6.3
+
+530 Tests bestanden: alle 446 bisherigen plus 84 neue synthetische Fälle.
+validate.py: PASS, 41 Python / 5 JSON. Compile-/Import- und Manifestprüfung PASS.
+Geprüft: fester EU-Broker/TLS 443, isolierter SSLContext, unveränderte normale
+Zertifikatsprüfung, sessionbasierte Identität ohne Login, ATR-Komposition und
+Topic-Injection-Schutz, MQTT-Level 4 / QoS 0 / Clean Session, CONNACK/SUBACK,
+Ablehnung, Größenlimits/Framing, getrennte Null-/Nonzero-/Distinct-Klassifikation,
+privacy-safe Export, Abbruch während Connect/CONNACK/Empfang, Reader-Task-Cleanup,
+Socket-Abbruch bei Cleanup-Fehlern, reale HA-Shutdown-Taskbindung, kein Reconnect
+oder Publish, unveränderter Coordinator bei MQTT-Fehlern. Kein Test deaktiviert.
+Eine externe HA/aiohttp-DeprecationWarning. Kein echter MQTT-Login im lokalen Test;
+Hardwarevalidierung steht aus. Keine neuen Runtime-Abhängigkeiten im Manifest.
+
+## Beta 6.2
+
+446 Tests bestanden: alle 415 bisherigen plus 31 neue synthetische Fälle.
+validate.py: PASS, 37 Python / 5 JSON. Compile-/Import- und Manifestprüfung PASS.
+Geprüft: unterschiedliche CRC-/Sentinel-/Nullstrukturen, leere Mengen, gleiche und
+unterschiedliche decodierte/encodierte Inhalte, transienter Fingerprint-Cleanup,
+LZMA1-Raw-Gegencheck für Null-/Nonzero-Daten, tatsächliche Abweichung vom primären
+Ergebnis, Properties-/Dictionary-/Output-/Input-Limits, maximal ein Gegencheck,
+keine zusätzlichen Requests, Cache-only ohne Gegencheck, Fehlerisolation sowie
+strikt allowlisteter Export ohne IDs/Hashes/Inhalte. Keine alten Tests deaktiviert.
+Eine externe HA/aiohttp-DeprecationWarning. Hardwarediagnose steht noch aus.
+
+## Beta 6.1
+
+415 Tests bestanden: alle bisherigen 374 plus 41 neue synthetische Fälle.
+validate.py: PASS, 35 Python / 5 JSON. Compile-/Import- und Manifestprüfung PASS.
+Eine externe HA/aiohttp-DeprecationWarning; keine Tests deaktiviert.
+Geprüft: 1/2/3 unverändert, 4, 5–10 und >10 sichtbar und Crop-relevant,
+Nullraster, Generationswechsel bei ID/Dimensionen/CRC-Liste, unveränderte zweite
+Prüfung, präzise Stage-Flags, Assembly-/PNG-Fehlerinjektion, alle Pixel-Buckets,
+Privacy und Diagnose des aktuellen Fehlers trotz vorherigem Cache-Bild.
+Neue Palette/Finalisierung auf echter Hardware noch nicht bestätigt.
+
+## Beta 6
+
+374 Tests bestanden (316 bisherige + 58 neue synthetische Fälle). validate.py:
+PASS, 34 Python / 5 JSON. Eine externe HA/aiohttp-DeprecationWarning.
+Geprüft: Major-Grenzen/Typen, Sentinel, striktes Base64/Legacy-LZMA, Output- und
+Dictionary-Limits, fehlende/überschüssige/trunkierte Daten, Piece-Identität,
+spaltenweise Rasteranordnung mit asymmetrischen eigenen Testpixeln, PNG-Chunks
+und Checksummen, vollständige Veröffentlichung, maximal zwei aktive Requests,
+alle benötigten Pieces, Cache-Wiederverwendung, nur geänderte Pieces, neue Map-ID,
+Generationswechsel während des Ladens, Deadline/Cancellation mit Worker-Cleanup,
+Fehler-Grace ohne Fristverlängerung, unabhängige Basissteuerung, PNG ohne Räume
+oder Position, Render-Cache, Reload, Privacy und keine automatischen Beta-5-Probes.
+Alte Alpha-6-/Beta-4-Testclients isolieren den separat geprüften Raw-Loader;
+keine alten Assertions oder Tests entfernt. Compile/import und Manifest zusätzlich
+geprüft. Keine neue Dependency. Decoder/Bild auf Hardware noch nicht validiert.
+
+## Beta 5
+
+316 Tests bestanden: bisherige 279 plus 37 neue synthetische Fälle. validate.py:
+PASS, 32 Python / 5 JSON. Eine externe HA/aiohttp-Warnung. Tests umfassen strenge
+CRC-Listengrammatik, Empty-Piece-Sentinel, maximal zwei unterschiedliche reale
+Listenpositionen, exakt erlaubte Request-Felder, gültige aktuelle Map-ID,
+Map-Mismatch/fehlende Liste ohne Minor-Read, accepted/received/rejected/timeout,
+Busy-Abbruch, Gesamtbudget, Cancellation, Formate ohne Decodierung und Privacy
+des gesamten Diagnoseexports. Kein MQTT-Code: explizit nicht getestet/verbunden.
+Vorhandener Beta-4-Testclient mockt nur den neuen, separat getesteten Zusatzpfad.
+Alle bestehenden Tests bleiben aktiv. Compile-/Importcheck und Manifest-JSON
+werden zusätzlich geprüft; keine neue Dependency. Hardwarebefunde Beta 5 offen.
+
+## Beta 4
+
+279 Tests bestanden: alle bisherigen 249 plus 30 neue synthetische Fälle.
+validate.py: PASS, 30 Python / 5 JSON. Eine externe HA/aiohttp-Warnung.
+Geprüft: exakt mid/type=ol, Read-only-Guard vor Netzwerk, unveränderte Read-Retry-
+Einstellung ohne Proben-Retry, ungültige/fehlende/mehrdeutige Map ohne Probe,
+Timeout/Reject ohne Einfluss auf gültige Rooms, keine Probe im gecachten Poll
+oder normaler Raumreinigung, Probe bei erkannter Map trotz Room-Fehler,
+feste Response-Pfade und Formatbuckets ohne IDs/CRC/Koordinaten/Rohdaten,
+ungewöhnliche Typen und Cancellation. Alpha-6-Testclient mockt nur die neue,
+hier separat getestete Probe; bestehende Assertierungen bleiben aktiv.
+HardwaregetMapInfo-Antwort noch ausstehend. Kein Decoder oder Renderer ergänzt.
+
+## Beta 3
+
+249 Tests bestanden (alle bisherigen 231 plus 18 neue synthetische Fälle).
+validate.py: PASS, 29 Python / 5 JSON. Eine externe HA/aiohttp-Warnung.
+Geprüft: validierte MapSet-msid in allen regulären Detailrequests, exakte Felder,
+fehlende/ungültige IDs ohne erfundenen Fallback, keine Wiederverwendung einer
+vorherigen MapSet-msid, leere und unbekannte Werte ohne Polygon, bestehender
+Parser für nichtleere XY-/JSON-Werte sowie Diagnose-/Log-Privacy. Keine Tests
+deaktiviert, keine Parser-/Renderer-/Lifecycle-/Command-Änderungen. Hardwaretest offen.
+
+## Beta 2
+
+231 Tests bestanden: alle 201 bisherigen Fälle plus 30 neue synthetische Fälle.
+validate.py: PASS, 28 Python / 5 JSON. Eine externe HA/aiohttp-Deprecation-Warnung.
+JSON-Top-Level-Typen, XY-Syntax, Base64-/Hex-Zeichensatzflags ohne Decodierung,
+Längenklassen an Grenzen, malformed/unexpected values, Deduplizierung, echte
+Client-Room-Testpipeline und Diagnoseexport ohne sensible Sentinelwerte geprüft.
+Keine zusätzlichen Cloudaufrufe, MajorMap-Probe unverändert, Kopierschutz und
+Zurücksetzen der lokalen Formatdiagnose geprüft. Bestehende Raum-/Map-/Write-
+und Renderertests bleiben aktiv. Neue Hardwarediagnose noch erforderlich,
+für diesen Schritt kein Saugtest nötig.
+
+## Beta 1
+
+201 Tests bestanden (175 bestehende + 26 neue Fälle). validate.py: PASS,
+26 Python-Dateien / 5 JSON-Dateien. Eine externe HA/aiohttp-Deprecation-Warnung.
+
+Home Assistant 2026.9.2 / Python 3.14.7. Alle bisherigen 175 Testfälle bleiben
+aktiv; Raum-Preflight-Fixtures liefern nun auch die ausdrücklich verlangten
+frischen Raumdaten. Zusätzliche synthetische Tests prüfen Image-Plattform,
+cloudfreie Bildabfrage, statisches SVG, dynamische/negative Bounds, Text-Escaping,
+optionale Marker, Cache-Invalidierung, neue Räume bei gleicher Map-ID,
+Generationsprüfung unter dem Write-Lock, HA-Mapping-Meldung und Datenschutz.
+Keine echten Cloudwerte als Fixtures übernommen. Der Besitzer bestätigt
+Alpha-6-Map-/Room-Erkennung und Segmentreinigung; Beta-1-SVG und Lifecycle
+benötigen noch den Hardwaretest. Die folgenden Abschnitte sind historisch.
+
+## Alpha 6
+
+175 Tests bestanden: alle 156 bisherigen Fälle bleiben aktiv, 19 neue synthetische
+Fälle. Der Alpha-5-Fallback-/Backoff-Test verwendet jetzt den echten Client mit
+gemocktem Transport statt einen Coordinator-internen Fallback vorauszusetzen;
+gleiche Assertions für einmalige Probe, gesperrte Räume und Backoff bleiben bestehen.
+Keine Tests deaktiviert. validate.py PASS: 23 Python / 5 JSON. Eine unveränderte
+externe HA/aiohttp-Deprecation-Warnung.
+
+Neue Tests: primärer Erfolg ohne Legacy, Timeout-Fallback mit gültiger mid,
+fehlende/ungültige/Null-/Zero-ID, kein Zugriff des Discovery-Parsers auf value,
+gemeinsame Discovery im Room-Preflight, anschließender MapSet-Read im selben Refresh,
+Room-Fehler bei gültiger Map, privacy-safe Subset-Struktur und Diagnoseexport,
+keine erzwungene Detailabfrage, skalierter tatsächlicher MapSet-Read-Retry über
+das alte 20s-Budget hinaus, begrenzte Discovery-/Room-Budgets, Reject ohne Fallback.
+Synthetische Daten, keine echten IDs oder Map-Inhalte. Hardwaretest Alpha 6 ausstehend.
+
+## Alpha 5
+
+156 Tests bestanden: alle bisherigen 141 plus 15 neue synthetische Fälle.
+validate.py: PASS, 22 Python / 5 JSON. Eine unveränderte externe HA/aiohttp-Warnung.
+Geprüft: Fallback nur nach Client-Timeout, keine Räume aus Probe, 180s Backoff,
+leere Payloads, ein Versuch je Legacy-Read, sequenzielle Ausführung, Privacy,
+Fortsetzung nach Timeout/Reject, Abbruch bei Busy/Offline/Auth und HA-Cancellation,
+keine Legacy-Probe bei normalen Writes, Read-only-Guard vor Netzwerkzugriff.
+Echte Antworten von getMapState/getMajorMap stehen noch aus. Keine Parseränderung.
+
+## Alpha 4
+
+141 Tests bestanden: alle 129 bisherigen plus 12 neue synthetische Fälle.
+validate.py: PASS, 21 Python-Dateien / 5 JSON-Dateien. Eine unveränderte externe
+HA/aiohttp-Deprecation-Warnung. Tests prüfen das abgeleitete Budget, einen echten
+Client-Read-Retry unter zeitlich skaliertem äußeren Timeout (erster Versuch Timeout,
+zweiter erfolgreich), Fehler-Backoff mit erneutem Poll, langen Erfolgscache,
+Raumabfragen nur bei aktiver Map und Positionsdiagnose ohne sensible Werte.
+Keine Hardwareantworten als synthetische Fixtures ausgegeben. Der echte
+Alpha-3-Befund steht in PROTOCOL.md; Hardwaretest von Alpha 4 noch ausstehend.
+
+## Zwischenschritt 2.5
+
+129 Tests bestanden: alle 109 bisherigen Fälle und 20 neue synthetische
+Strukturdiagnose-/Datenschutzfälle. `python scripts/validate.py`: PASS,
+20 Python-Dateien, 5 JSON-Dateien. `python -m pytest -q`: 129 passed,
+eine unveränderte externe Home-Assistant/aiohttp-Deprecation-Warnung.
+
+Neue Fälle: JSON-/Objekt-Umschläge, feste Antwortebenen ohne Parser-Fallback,
+Typvarianten von using, unbekannte Schlüssel und sensible Sentinel-Werte,
+Diagnoseexport ohne IDs/Namen/Koordinaten, Kopie und Löschen beim Entladen,
+Offline/Busy/Transport/Timeout/Reject, Budget-Abbruch, begrenzte Listeninspektion,
+fehlende Roboterposition bei vorhandener Dockposition, keine Probe von Writes.
+Der Mock des Clients erhielt die neue synchrone Diagnosemethode;
+bestehende Testassertionen wurden nicht entfernt oder abgeschwächt.
+
+Kein Zugriff auf echte Cloudantworten. Der Besitzer meldet Basissteuerung und
+Dockposition mit Alpha 2 als funktionierend, aber fehlende Map-/Room-Erkennung.
+Die reale Map-/Room-Struktur und Ursache sind noch offen; Alpha 3 erfasst die
+dafür benötigte Struktur beim nächsten Hardwarelauf. Keine Hardwarevalidierung
+oder Parserkorrektur behauptet. MIT/THIRD_PARTY_NOTICES unverändert.
 
 ## Testumgebung
 
@@ -10,7 +199,26 @@ Aktueller Stand nach Umsetzung des direkten Clients.
 
 ## Geprüft
 
-**34 automatisierte Tests bestanden.** Reale HA-Imports sind erfolgreich; ein HA-internes DeprecationWarning bleibt ohne Testfehler.
+**Alpha-2-Stand: 109 automatisierte Tests bestanden.** Alle 70 Etappe-1-Tests unverändert aktiv;
+39 zusätzliche synthetische Etappe-2-Fälle. Reale HA-Imports erfolgreich;
+ein HA-internes DeprecationWarning bleibt ohne Testfehler.
+
+Neu geprüft: native Segmente/IDs/Namen/CLEAN_AREA, gültiger/leerer/veralteter
+Cache, einzelne/zwei/mehrere Räume, Normalisierung/Duplikate/ungültige Auswahl,
+Kartenwechsel/Map-Check-Fehler/HA-Zuordnung mit wiederverwendeten IDs,
+Queue/Doppelklick/wechselnde Raumaufträge, unklare Antwort und Timeout,
+explizite Ablehnung, alle angeforderten no-op-Zustände, legitime Übergänge
+und veraltete Statuswerte. Raumreinigung am echten Gerät noch unbestätigt.
+
+Etappe 1 ergänzt synthetische Tests für V1-Karten/Räume/Position, unkomprimierte
+Polygone, unbekannte Kompression, mehrdeutige Karten, Cache und Kartenwechsel,
+optionale Fehlerisolation und Privacy-Allowlist. Befehlsfälle: direkt bestätigter
+Start, unklarer Start/Resume/Pause/Stop/Dock mit passendem Status, Dock returning
+und docked, unpassender/offline/unbekannter Status, explizite Ablehnung,
+Rate-Limit, Timeout ohne Retry, Fehler vor dem Write, parallele Writes,
+Start/Stop/Dock-Doppelklick, Start–Stop–Start, Lock bis Refresh-Ende,
+begrenzte Queue und Abbruch wartender Aufrufe. Bestehende Vacuum-Funktionen geprüft.
+`python scripts/validate.py`: 18 Python-Dateien, 5 JSON-Dateien bestanden.
 
 - Protokollsignatur, Token-Wiederverwendung und konkurrierende Anmeldung.
 - Yeedi-Hosts/App-Organisation, Gerätefilter, Duplikate und fehlende Geräteantworten.
@@ -26,8 +234,10 @@ Aktueller Stand nach Umsetzung des direkten Clients.
 
 ## Noch erforderlich
 
-- Installation über HACS in der echten Home-Assistant-Instanz.
-- Login am echten Yeedi-Konto, Firmware 1.2.9 und sämtliche physische Befehle.
+- Neue Alpha am echten DVX34: Karte, Räume, Position und neue Bestätigungslogik.
+- Installation und Basissteuerung von 0.1.0 wurden vom Besitzer bestätigt;
+  dennoch gelegentliche Fehlermeldung trotz ausgeführtem Befehl. Daraus keine
+  Live-Bestätigung für die neuen Alpha-Funktionen ableiten.
 - Langzeitbetrieb und Tokenablauf.
 - Region außerhalb DE ist nicht unterstützt; Verifizierungscode-Ablauf 1013 ist nicht implementiert.
 

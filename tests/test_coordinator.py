@@ -1,6 +1,6 @@
 """Exercise the real coordinator with an isolated Home Assistant instance."""
 from types import MappingProxyType
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from homeassistant.config_entries import ConfigEntries, ConfigEntry
@@ -20,6 +20,13 @@ async def coordinator(tmp_path):
                         version=1, minor_version=1, source="user", unique_id="DE:user",
                         discovery_keys=MappingProxyType({}), subentries_data=[])
     client = AsyncMock()
+    client.structure_diagnostics = Mock(return_value={})
+    client.geometry_diagnostics = Mock(return_value={})
+    from custom_components.yeedi_vac_max.transport_diagnostics import empty_probe
+    client.transport_diagnostics = Mock(side_effect=lambda robot: empty_probe())
+    client.positions.return_value = (None, None)
+    client.maps.return_value = ()
+    client.snapshot.return_value = {"online": True, "activity": "idle"}
     robot = Robot("vac", "res", "Vac")
     instance = YeediCoordinator(hass, entry, client, [robot])
     yield instance
@@ -55,4 +62,4 @@ async def test_acknowledged_command_refreshes(coordinator):
     coordinator.async_request_refresh = AsyncMock()
     await coordinator.execute(coordinator.robots[0], "charge", {"act": "go"})
     coordinator.client.command.assert_awaited_once_with(coordinator.robots[0], "charge", {"act": "go"}, writing=True)
-    coordinator.async_request_refresh.assert_awaited_once()
+    coordinator.client.snapshot.assert_awaited_once()

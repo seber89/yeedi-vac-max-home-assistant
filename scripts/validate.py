@@ -27,12 +27,12 @@ def main():
     }
     manifest = documents[COMPONENT / "manifest.json"]
     assert manifest["domain"] == COMPONENT.name
-    assert manifest["version"] == "0.1.0"
+    assert manifest["version"] == "0.2.0-beta.6.4"
     assert manifest["config_flow"] is True
     assert manifest["requirements"] == []
     for field in ("documentation", "issue_tracker", "codeowners", "name"):
         assert manifest[field]
-    assert documents[ROOT / "hacs.json"]["homeassistant"] == "2026.3.0"
+    assert documents[ROOT / "hacs.json"]["homeassistant"] == "2026.9.2"
     assert {p.name for p in (ROOT / "custom_components").iterdir() if p.is_dir() and p.name != "__pycache__"} == {COMPONENT.name}
     source = documents[COMPONENT / "strings.json"]
     assert documents[COMPONENT / "translations/en.json"] == source
