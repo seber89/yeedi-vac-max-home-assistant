@@ -21,7 +21,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
     mqtt = [listener.snapshot(robot) if listener is not None else empty_probe()
             for robot in coordinator.robots]
     return {
-        "integration_version": "0.2.0-beta.6.3",
+        "integration_version": "0.2.0-beta.6.4",
         "mqtt_live_map_probe": mqtt,
         "map_transport_comparison": [comparison(
             safe_export(coordinator.spatial[robot.did].raw_status.get('zero_pixel_probe')), probe)

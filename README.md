@@ -1,6 +1,38 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.2.0-beta.6.3 — Experimental / Beta / Hardware-Diagnose: passiver MQTT-Vergleich. Noch nicht gemergt.**
+**0.2.0-beta.6.4 — Experimental / Beta / Hardware-Test: besser lesbare Raw-Karte. Noch nicht gemergt.**
+
+## Beta 6.4: ausschließlich Darstellungs-Feinschliff
+
+Der Besitzer bestätigt inzwischen eine sichtbare, vollständige Karte sowie
+Nonzero-MQTT-Nachrichten. Das Bild kommt weiterhin aus dem bestehenden Direct-
+HTTPS-RawMap-Pfad; MQTT bleibt ausschließlich Diagnose und liefert keine Bilddaten
+an die Image-Entity. Die funktionierende Basis wird nicht umgebaut.
+
+Alle sichtbaren Nonzero-Zellen bestimmen den Bildausschnitt. Ein gleichmäßiger
+Rand von 1–6 Quellpixeln bleibt auch an Rasterkanten erhalten. Kleine Karten werden
+mit ganzzahligem Nearest-Neighbor-Faktor bis maximal 8 vergrößert; Ziel sind etwa
+320 Pixel an der längeren sichtbaren Seite, soweit das Vergrößerungslimit dies
+zulässt. Große Karten bleiben in Originalauflösung, ohne verlustbehaftete
+Verkleinerung. Ausgabe höchstens 1040 Pixel pro Seite, weiterhin begrenztes PNG.
+Keine neuen Farben, erfundenen Zellen im Grundraster oder Raumlabels.
+
+Raum-Polygone und Positionen sind für die Raw-Karte nicht erforderlich. **Keine
+neuen Robot-/Dock-Marker:** Gültige Positionswerte belegen noch nicht Ursprung
+und Maßeinheit im Raw-Raster. Ohne sicher validierte Transformation werden keine
+Marker geraten. Der bestehende separate Polygon-SVG-Fallback bleibt unverändert.
+
+Image-Entity und Identität bleiben gleich. Cache-Regeln ebenfalls: Nach HA-
+Neustart wird die Karte frisch geladen, nicht aus einer neuen Datei wiederhergestellt.
+Vorübergehende Fehler behalten eine gültige Karte derselben Map innerhalb der
+bisherigen dreiminütigen Fehlerfrist; kein unbefristet veraltetes Bild. Weder
+Transport, MQTT-Fenster, Steuerung noch Raumreinigung werden geändert.
+
+Hardwaretest: Beta 6.4 installieren → HA vollständig neu starten → angedockt
+2–3 Minuten warten → Größe/Lesbarkeit der Karte prüfen. Die sichtbare Karte nach
+Neustart setzt weiterhin erfolgreiches frisches Laden voraus. Raw-Positionsmarker
+sind in dieser Version nicht zu erwarten. Bei Bedarf Diagnose herunterladen.
+Kein Raumwechseltest nötig. Die folgenden Abschnitte dokumentieren ältere Stände.
 
 ## Beta 6.3: einmaliges MQTT-Beobachtungsfenster
 

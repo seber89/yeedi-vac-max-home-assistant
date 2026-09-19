@@ -1,6 +1,20 @@
 # Prüfprotokoll — 16. September 2026
 
-Stand 0.2.0-beta.6.3 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-beta.6.4 auf feature/rooms-position-map; kein Merge nach main.
+
+## Beta 6.4
+
+564 Tests bestanden: alle 530 bisherigen plus 34 neue synthetische Fälle.
+validate.py: PASS, 42 Python / 5 JSON. Compile-/Import- und Manifestprüfung PASS.
+Crop in der Mitte und an Kanten, symmetrisches Padding, Translation-Invarianz,
+Zoom-/Ausgabegrenzen, dünne/langgezogene Geometrie, alle vorhandenen Renderfarben,
+Null-/Fehlerraster, PNG-Chunk-CRCs und jede vergrößerte Originalzelle geprüft.
+Raw-Image bleibt ohne Polygone/Positionen verfügbar; keine geratenen Overlays.
+Reload-Test lädt eine neue valide Karte in frischen State; es wird ausdrücklich
+keine Disk-Persistenz behauptet. Bestehende dreiminütige Fehlerfrist und Map-ID-
+Schutz bleiben getestet. Eine externe HA/aiohttp-DeprecationWarning.
+Synthetische PNG-Vorschau visuell geprüft. Kein echter Roboter bedient; neue
+Darstellung muss noch auf Hardware bestätigt werden. Keine Tests deaktiviert.
 
 ## Beta 6.3
 

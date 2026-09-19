@@ -159,8 +159,20 @@ def render_png(major, pieces):
         raise MapRenderError('png_generation', True) from None
 
 
-def _encode_png(raster, side):
-    # Crop empty borders for a useful dashboard image, preserving actual pixels.
+DISPLAY_TARGET = 320
+MAX_DISPLAY_SCALE = 8
+MAX_DISPLAY_SIDE = 1040  # Full 1024px input plus bounded display-only padding.
+
+
+def _display_raster(raster, side):
+    """Crop all nonzero geometry, pad and enlarge only the presentation raster.
+
+    Integer nearest-neighbor scaling keeps every original cell/color and aspect
+    ratio intact. No downsampling, coordinate inference or changes to map state.
+    """
+    if (type(side) is not int or side <= 0 or side * side > MAX_PIXELS
+            or not isinstance(raster, bytes) or len(raster) != side * side):
+        raise MapFormatError('Invalid display raster')
     min_x = min_y = side
     max_x = max_y = -1
     for offset, color in enumerate(raster):
@@ -170,17 +182,39 @@ def _encode_png(raster, side):
             min_y, max_y = min(min_y, y), max(max_y, y)
     if max_x < 0:
         raise MapFormatError('No visible map geometry')
-    left, right = max(0, min_x - 4), min(side, max_x + 5)
-    top, bottom = max(0, min_y - 4), min(side, max_y + 5)
-    scanlines = b''.join(b'\0' + raster[y * side + left:y * side + right]
-                         for y in range(top, bottom))
+    visible_width, visible_height = max_x - min_x + 1, max_y - min_y + 1
+    longest = max(visible_width, visible_height)
+    padding = max(1, min(6, math.ceil(longest * .03)))
+    width, height = visible_width + 2 * padding, visible_height + 2 * padding
+    scale = min(MAX_DISPLAY_SCALE, max(1, math.ceil(DISPLAY_TARGET / longest)),
+                MAX_DISPLAY_SIDE // max(width, height))
+    if scale < 1:
+        raise MapFormatError('Oversized display raster')
+    output_width, output_height = width * scale, height * scale
+    # Padding is outside the crop even at the original grid edge. It is only
+    # background in the presentation and never fed back into the source grid.
+    border = bytes(output_width)
+    rows = [border] * (padding * scale)
+    for y in range(min_y, max_y + 1):
+        source = raster[y * side + min_x:y * side + max_x + 1]
+        expanded = b''.join(bytes([color]) * scale for color in source)
+        row = bytes(padding * scale) + expanded + bytes(padding * scale)
+        rows.extend([row] * scale)
+    rows.extend([border] * (padding * scale))
+    return output_width, output_height, b''.join(rows)
+
+
+def _encode_png(raster, side):
+    width, height, display = _display_raster(raster, side)
+    scanlines = b''.join(b'\0' + display[y * width:(y + 1) * width]
+                         for y in range(height))
 
     def chunk(kind, data):
         # PNG container checksum only, NOT an inferred Yeedi piece CRC algorithm.
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
 
     png = (b'\x89PNG\r\n\x1a\n'
-           + chunk(b'IHDR', struct.pack('>IIBBBBB', right-left, bottom-top, 8, 3, 0, 0, 0))
+           + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 3, 0, 0, 0))
            + chunk(b'PLTE', bytes((239,242,245, 193,212,220, 35,45,55, 161,180,193,
                                   183,199,205, 147,154,161)))
            + chunk(b'IDAT', zlib.compress(scanlines, 6)) + chunk(b'IEND', b''))

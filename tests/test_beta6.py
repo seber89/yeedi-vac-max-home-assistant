@@ -114,8 +114,16 @@ def test_column_major_assembly_and_original_png():
         chunks[kind] = data
         offset += n+12
     assert set(chunks) == {b'IHDR',b'PLTE',b'IDAT',b'IEND'}
-    assert struct.unpack('>II',chunks[b'IHDR'][:8]) == (4,4)
-    assert zlib.decompress(chunks[b'IDAT']) == b''.join(b'\0'+raster[i:i+4] for i in range(0,16,4))
+    # Beta 6.4 changes presentation only: 4x4 source + one-cell border, 8x zoom.
+    assert struct.unpack('>II',chunks[b'IHDR'][:8]) == (48,48)
+    displayed = zlib.decompress(chunks[b'IDAT'])
+    assert all(displayed[y*49] == 0 for y in range(48))
+    # Verify every original cell/color survives the padding and exact scaling.
+    for y in range(4):
+        for x in range(4):
+            for dy in range(8):
+                offset = ((y+1)*8+dy)*49 + 1 + (x+1)*8
+                assert displayed[offset:offset+8] == bytes([raster[y*4+x]])*8
 
 
 def test_incomplete_and_all_empty_no_image():

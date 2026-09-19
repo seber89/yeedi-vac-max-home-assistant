@@ -1,6 +1,34 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-beta.6.3. Ältere Abschnitte halten die damaligen Befunde fest.
+Stand: 0.2.0-beta.6.4. Ältere Abschnitte halten die damaligen Befunde fest.
+
+## Beta 6.4 — rein lokale PNG-Präsentation
+
+Neuer Hardwarebefund: vollständige sichtbare Direct-RawMap, weiterhin ohne
+Raum-Polygone; MQTT-Diagnose empfängt Nonzero-Daten, die nicht zur Image-Entity
+gelangen. Beta 6.4 ändert ausschließlich die PNG-Darstellung nach erfolgreichem
+Rasteraufbau. Keine Änderung an Transport, Decoder, Generation, Cache oder MQTT.
+
+Der bestehende Nonzero-Crop bleibt Grundlage. Darstellungspadding: 3 Prozent
+der längeren sichtbaren Seite, auf ganze Pixel aufgerundet und auf 1–6 begrenzt.
+Anders als zuvor auch an Quellrasterkanten symmetrisch. Nur Display-Hintergrund,
+keine Rückwirkung auf Pieces, Grundraster oder Positionsdaten.
+Integer-Nearest-Neighbor-Zoom: Ziel 320 sichtbare Pixel an der längeren Seite,
+Faktor 1–8 und Ausgabe maximal 1040 je Seite. Keine Unschärfe, keine Verzerrung,
+keine verlorenen dünnen Wände durch Downsampling. PNG-Palette und 2MiB-Limit
+unverändert. Komplett null bleibt no_visible_pixels. Keine neuen Diagnostics.
+
+Der bisherige 4x4-PNG-Regressionstest prüft jetzt das erwartete gepaddete 48x48-
+Bild und jede vergrößerte Originalzelle, zusätzlich zu PNG-CRC/Chunk-Prüfung.
+Dies aktualisiert nur eine beabsichtigte Ausgabegröße, keine Transportassertion.
+
+Keine Raw-Overlays: Geräte-Y-Richtung ist dokumentiert, doch ein für dieses
+Raster validierter absoluter Ursprung und Positionsmaßstab fehlen. Allein
+has_robot_position/has_dock_position rechtfertigt keine Umrechnung. Unabhängiger
+Polygon-SVG-Fallback unverändert; keine geratenen Marker auf der RawMap.
+Image-API/Entity-ID unverändert. Reload startet wie bisher ohne persistenten
+Karten-Cache und zeigt die frisch validierte Karte nach bestehendem Cloud-Load.
+Die bisherige begrenzte Fehlerfrist bleibt erhalten, nicht unbegrenzt erweitert.
 
 ## Beta 6.3 — isolierte passive MQTT-Diagnose
 
