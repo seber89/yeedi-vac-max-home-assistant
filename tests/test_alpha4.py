@@ -1,6 +1,5 @@
 """Synthetic timing and privacy regression tests; no hardware responses."""
 import asyncio
-import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -10,7 +9,6 @@ from tests.test_coordinator import coordinator
 from custom_components.yeedi_vac_max import client as cloud
 from custom_components.yeedi_vac_max import coordinator as module
 from custom_components.yeedi_vac_max.map_data import YeediMap, YeediRoom
-from custom_components.yeedi_vac_max.structure_diagnostics import shape
 
 
 def test_map_budget_covers_complete_read_retry():
@@ -52,7 +50,6 @@ async def test_second_http_read_completes_inside_map_budget(coordinator, monkeyp
     assert attempts == [15, 15]
     assert module.MAP_READ_TIMEOUT in budgets
     assert coordinator.spatial["vac"].metadata_valid
-    assert c.structure_diagnostics(coordinator.robots[0])["getCachedMapInfo"]["command_success"]
 
 
 @pytest.mark.parametrize("error", [cloud.CloudError("synthetic"), TimeoutError()])
@@ -94,16 +91,3 @@ async def test_room_failure_uses_backoff(coordinator, monkeypatch):
     coordinator.client.rooms.side_effect = cloud.CloudError("synthetic")
     await coordinator._spatial_refresh(coordinator.robots[0])
     assert coordinator.spatial["vac"].next_map_refresh == 10000 + module.MAP_ERROR_BACKOFF
-
-
-@pytest.mark.parametrize("entry", [{"x": 987654321, "y": -987654321, "a": 123456789, "invalid": "SECRET"},
-                                    {"x": None, "invalid": False}, None, [], "SECRET"])
-def test_position_field_types_never_values(entry):
-    result = shape({"deebotPos": entry, "chargePos": [entry], "SECRET_ID": "SECRET_NAME"})
-    text = json.dumps(result)
-    assert "SECRET" not in text and "987654321" not in text and "123456789" not in text
-    for label in ("deebotPos", "chargePos[0]"):
-        fields = result[label + "_fields"]
-        assert set(fields) == {"x", "y", "a", "invalid"}
-        assert all(set(item) == {"present", "type"} for item in fields.values())
-        assert fields["x"]["present"] == (isinstance(entry, dict) and "x" in entry)

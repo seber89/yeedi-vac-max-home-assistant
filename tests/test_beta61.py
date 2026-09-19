@@ -29,9 +29,6 @@ async def test_nonzero_visible_and_final_flags(value):
     assert result and result.png.startswith(b'\x89PNG')
     assert status['failure_stage'] == 'none'
     assert all(status[k] for k in ('generation_verified','render_attempted','raster_assembled','image_generated'))
-    assert status['total_nonzero_pixels_bucket'] == '9-32'
-    assert status['known_renderable_pixels_bucket'] == ('0' if 5 <= value <= 10 else '9-32')
-    assert status['unhandled_nonzero_pixels_bucket'] == ('9-32' if 5 <= value <= 10 else '0')
     raster = raw.assemble(result.major,result.pieces)
     assert sum(bool(p) for p in raster) == 12
     if value <= 3:
@@ -43,7 +40,7 @@ async def test_all_zero_precise_failure():
     assert await pixel_client(0).load_raw_map(ROBOT,MID,None,status) is None
     assert status['failure_stage'] == 'no_visible_pixels'
     assert status['generation_verified'] and status['render_attempted'] and status['raster_assembled']
-    assert not status['image_generated'] and status['total_nonzero_pixels_bucket'] == '0'
+    assert not status['image_generated']
 
 
 @pytest.mark.parametrize('change',[{'mid':'OTHER'},{'value':'1,2,3,4'},
@@ -100,14 +97,6 @@ async def test_early_stage_outcomes(stage):
     status = raw.safe_status()
     assert await c.load_raw_map(ROBOT,MID,None,status) is None
     assert status['failure_stage'] == stage and not status['render_attempted']
-
-
-@pytest.mark.parametrize('count,bucket',[(0,'0'),(1,'1'),(8,'2-8'),(9,'9-32'),
-    (64,'33-64'),(65,'65-256'),(256,'65-256'),(257,'257-1024'),(1024,'257-1024'),(1025,'>1024')])
-def test_pixel_buckets(count,bucket):
-    result = raw.pixel_buckets((bytes([4])*count,None))
-    assert result['total_nonzero_pixels_bucket'] == result['known_renderable_pixels_bucket'] == bucket
-    assert result['unhandled_nonzero_pixels_bucket'] == '0'
 
 
 async def test_export_preserves_latest_failure_during_cache_grace(coordinator,caplog):

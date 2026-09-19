@@ -2,6 +2,10 @@
 
 This repository remains MIT licensed. LICENSE is unchanged.
 
+RC1 removes the temporary Beta-6.3 MQTT diagnostic and its scoped TLS exception.
+No MQTT implementation remains in the shipped integration. The historical
+provenance below is retained for attribution and audit, not as runtime guidance.
+
 The following GPL-3.0 projects were consulted solely for interoperability facts
 (command names, request/response fields, application identifiers, device generation):
 

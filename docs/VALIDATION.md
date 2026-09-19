@@ -1,6 +1,35 @@
-# Prüfprotokoll — 16. September 2026
+# Prüfprotokoll — 19. September 2026
 
-Stand 0.2.0-beta.6.4 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-rc.1 auf feature/rooms-position-map; kein Merge nach main.
+
+## RC1
+
+346 Tests bestanden. 331 relevante bestehende Tests bleiben nach Entfernung
+von 233 reinen Forschungsdiagnosefällen erhalten; 15 neue Cleanup-Fälle
+prüfen entfernte Module/Imports, TLS-/MQTT-Abwesenheit, kompakte Allowlist,
+manipulierte Diagnosedaten, primären Decoder und Read-only-Sicherheit.
+Der Setup-/Unload-Test verbietet zusätzlich neue Hintergrundtasks.
+Keine relevanten Funktionstests deaktiviert.
+
+validate.py: PASS, 32 Python / 5 JSON. Compilecheck und Import sämtlicher
+Integrationsmodule: PASS. Manifest ohne zusätzliche Runtime-Abhängigkeit.
+AST-Importscan: keine unbenutzten Runtime-Imports. Runtime-Suche: keine
+MQTT-/Forschungsdiagnose-Imports oder absichtlich unsichere TLS-Ausnahmen.
+Die historische Methode probe_legacy_maps bleibt funktionale Map-Discovery,
+kein Diagnoselauf. Deren Timeout-/Fallback-Tests bleiben erhalten.
+
+AST-Vergleich mit Beta 6.4: parse_major, decode_piece, assemble, render_png,
+_display_raster und _encode_png unverändert. Vacuum, Image, Datenmodelle,
+SVG-Renderer, Config Flow und Konstantendatei byteinhaltlich unverändert.
+Coordinator-Diff entfernt ausschließlich den optionalen getMapInfo-Probeaufruf.
+Bestehende Tests für Generation, Zwei-Worker-Limit, PNG, Crop/Zoom, Cache,
+Reload, last-valid-map, Räume und Befehle grün.
+Eine externe HA/aiohttp-DeprecationWarning bleibt.
+
+Beta-6.4-Hardwareerfolg laut Besitzer dokumentiert; kein echter Roboter während
+dieses Cleanups bedient. Abschließender RC-Smoke-Test noch erforderlich.
+Entfernte Forschungsdateien bleiben in der Git-Historie wiederherstellbar.
+Ältere Abschnitte unten beschreiben ausschließlich die damaligen Stände.
 
 ## Beta 6.4
 

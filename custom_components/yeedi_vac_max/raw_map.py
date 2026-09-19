@@ -13,7 +13,7 @@ import struct
 import zlib
 
 from .map_data import identifier
-from .transport_diagnostics import EMPTY_PIECE
+EMPTY_PIECE = 1295764014  # Documented legacy unused-piece sentinel.
 
 MAX_PIXELS = 1024 * 1024
 MAX_ENCODED = 512 * 1024
@@ -232,28 +232,4 @@ def safe_status():
                 required_piece_count_bucket='0', loaded_piece_count_bucket='0',
                 decoded_piece_count_bucket='0', decode_failures_bucket='0', image_generated=False,
                 generation_verified=False, render_attempted=False, raster_assembled=False,
-                failure_stage='none', total_nonzero_pixels_bucket='0',
-                known_renderable_pixels_bucket='0', unhandled_nonzero_pixels_bucket='0')
-
-
-def pixel_buckets(pieces):
-    """Aggregate only; no palette values, exact counts or piece association leave here."""
-    nonzero = known = unhandled = 0
-    for piece in pieces:
-        if piece is not None:
-            for value in piece:
-                if value:
-                    nonzero += 1
-                    if value <= 4 or value > 10:
-                        known += 1
-                    else:
-                        unhandled += 1
-
-    def bucket(count):
-        return next((label for maximum, label in (
-            (0,'0'), (1,'1'), (8,'2-8'), (32,'9-32'), (64,'33-64'),
-            (256,'65-256'), (1024,'257-1024')) if count <= maximum), '>1024')
-
-    return dict(total_nonzero_pixels_bucket=bucket(nonzero),
-                known_renderable_pixels_bucket=bucket(known),
-                unhandled_nonzero_pixels_bucket=bucket(unhandled))
+                failure_stage='none')

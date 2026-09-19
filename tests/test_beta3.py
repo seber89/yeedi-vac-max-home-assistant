@@ -55,9 +55,6 @@ async def test_existing_parser_and_private_diagnostics(coordinator,caplog,value,
     text = json.dumps(output)+caplog.text
     for private in ('PRIVATE','987654','123456','unknown-format'):
         assert private not in text
-    probe = output['room_geometry_probe'][0]
-    assert probe['value_count'] == 2 and probe['polygon_count'] == 2*has_polygon
-    assert probe['formats'][0]['format']['empty'] == (value == '')
 
 
 async def test_msid_is_local_to_each_mapset():

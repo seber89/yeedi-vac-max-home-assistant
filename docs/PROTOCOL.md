@@ -1,6 +1,25 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-beta.6.4. Ältere Abschnitte halten die damaligen Befunde fest.
+Stand: 0.2.0-rc.1. Ältere Abschnitte sind historische Entwicklungsbefunde,
+keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC1 — Forschung entfernt, bestätigte Funktion unverändert
+
+Der Besitzer bestätigt Beta 6.4: lesbare, aktualisierte Karte, erneutes Laden
+nach HA-Neustart, Stop/Pause/Home und Raumreinigung auf echter Hardware.
+RC1 entfernt MQTT-Diagnose, ihre temporäre TLS-Ausnahme, den zusätzlichen
+getMapInfo-Diagnoseaufruf, Format-/Transportproben und LZMA-Crosscheck.
+Keine MQTT-Verbindung und keine deaktivierte Zertifikatsprüfung verbleiben.
+Die unten beschriebene Beta-6.3-Ausnahme gilt ausdrücklich NICHT mehr.
+
+Unverändert bleiben funktionale Legacy-Discovery (die historische Methode
+probe_legacy_maps liefert weiterhin die aktive Map), Major/Minor-Abfragen,
+primärer Decoder, Assembly, Generation-Check, PNG-Palette/Crop/Zoom,
+Cache-/Image-Verhalten sowie sämtliche Vacuum-/Raumbefehle.
+Keine neuen Protokollannahmen oder Transportwege.
+Kompakte Diagnostics exportieren nur feste boolesche Flags, Anzahlklassen
+und Fehlerkategorien; keine Forschungsblöcke oder privaten Werte.
+Ein abschließender RC-Hardware-Smoke-Test steht noch aus.
 
 ## Beta 6.4 — rein lokale PNG-Präsentation
 

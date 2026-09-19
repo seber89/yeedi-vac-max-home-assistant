@@ -6,7 +6,6 @@ This original implementation uses no code or runtime from a third-party fork.
 from __future__ import annotations
 
 import asyncio
-from copy import deepcopy
 from dataclasses import dataclass
 import hashlib
 import json
@@ -19,12 +18,8 @@ from uuid import uuid4
 import aiohttp
 
 from .const import TARGET_CLASS_ID
-from .structure_diagnostics import COMMANDS, LEGACY_COMMANDS, response_structure
-from .geometry_diagnostics import value_format, aggregate_formats
-from .transport_diagnostics import empty_probe, major_shape, minor_shape, piece_indices
 from .raw_map import RawMap, MapFormatError, MapChanged, parse_major, decode_piece, render_png, count_bucket
-from .raw_map import MapRenderError, pixel_buckets
-from .zero_pixel_diagnostics import ZeroPixelProbe, alternate_decode
+from .raw_map import MapRenderError
 from .map_data import (YeediMap, YeediRoom, RobotPosition, DockPosition,
                        identifier, position, polygon, fallback_name)
 
@@ -43,7 +38,7 @@ READ_RETRY_BUDGET = HTTP_TIMEOUT * READ_ATTEMPTS + READ_RETRY_DELAY * (READ_ATTE
 LEGACY_PROBE_TIMEOUT = HTTP_TIMEOUT + 3
 MAP_REQUEST_TIMEOUT = READ_RETRY_BUDGET + 9
 MAP_DISCOVERY_TIMEOUT = MAP_REQUEST_TIMEOUT + 2 * LEGACY_PROBE_TIMEOUT + 1
-TRANSPORT_PROBE_TIMEOUT = 60
+LEGACY_COMMANDS = ("getMapState", "getMajorMap")
 RAW_MAP_TIMEOUT = 75
 _LOGGER = logging.getLogger(__name__)
 
@@ -177,9 +172,6 @@ class YeediClient:
         self.expires = 0.0
         self._auth_lock = asyncio.Lock()
         self._requests = asyncio.Semaphore(3)
-        self._structure = {}
-        self._geometry = {}
-        self._transport = {}
 
     async def _request(self, method: str, url: str, *, retry: bool = False, **kwargs) -> dict:
         """Bound requests; no retries for writes or login, no raw exception logging."""
@@ -296,44 +288,7 @@ class YeediClient:
 
     async def command(self, robot: Robot, name: str, data: dict | list | None = None,
                       *, writing: bool = False) -> dict:
-        """Capture only safe structure of the four optional read commands."""
-        probe = None
-        if not writing and name in COMMANDS:
-            probe = {"attempted": True, "command_success": False,
-                     "response_received": False, "outcome": "pending"}
-            self._structure.setdefault(robot.did, {})[name] = probe
-        try:
-            result = await self._command(robot, name, data, writing=writing, probe=probe)
-        except asyncio.CancelledError:
-            if probe is not None:
-                probe["outcome"] = "cancelled_or_budget_expired"
-            raise
-        except CloudError as err:
-            if probe is not None:
-                probe["outcome"] = next((label for cls, label in (
-                    (DeviceOffline, "offline"), (CommandRejected, "rejected"),
-                    (RateLimited, "busy"), (CommandTimeout, "timeout"),
-                    (InvalidAuth, "authentication"), (VerificationRequired, "authentication"),
-                    (CommandUncertain, "unclear"), (CannotConnect, "transport"))
-                    if isinstance(err, cls)), "cloud_error")
-            raise
-        if probe is not None:
-            probe.update(command_success=True, outcome="accepted_read")
-        return result
-
-    def structure_diagnostics(self, robot: Robot) -> dict:
-        """No IDs in output; a copy prevents diagnostic consumers modifying state."""
-        recorded = self._structure.get(robot.did, {})
-        return {name: deepcopy(recorded.get(name, {"attempted": False})) for name in COMMANDS}
-
-    def geometry_diagnostics(self, robot: Robot) -> dict:
-        """Latest room-read cycle only, aggregate format flags without raw data."""
-        return deepcopy(self._geometry.get(robot.did, aggregate_formats([])))
-
-    def transport_diagnostics(self, robot: Robot) -> dict:
-        return deepcopy(self._transport.get(robot.did, empty_probe()))
-
-    async def _command(self, robot: Robot, name: str, data=None, *, writing=False, probe=None):
+        """Send a validated command without retaining response diagnostics."""
         if name in (*LEGACY_COMMANDS, "getMapInfo", "getMinorMap") and writing:
             raise ValueError("Legacy map probes are read-only")
         try:
@@ -350,8 +305,6 @@ class YeediClient:
                   "payload": {"header": {"pri": "1", "ts": int(time.time()*1000),
                                          "tzm": 480, "ver": "0.0.50"},
                               "body": {"data": data or {}}}})
-        if probe is not None:
-            probe.update(response_structure(response, outline=name == "getMapInfo"))
         return command_body(response, writing=writing)
 
     async def _device_request(self, writing, *args, **kwargs):
@@ -395,9 +348,6 @@ class YeediClient:
 
         Never interpret state or access MajorMap.value. A failed probe yields no map.
         """
-        recorded = self._structure.setdefault(robot.did, {})
-        for name in LEGACY_COMMANDS:
-            recorded.pop(name, None)  # Do not show an old result as this cycle's probe.
         for name in LEGACY_COMMANDS:
             try:
                 async with asyncio.timeout(LEGACY_PROBE_TIMEOUT):
@@ -413,17 +363,6 @@ class YeediClient:
                 continue
         return None
 
-    async def probe_map_info(self, robot: Robot, map_id: str) -> None:
-        """One bounded outline read; discard result, keep safe structure only."""
-        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == "0":
-            return
-        try:
-            async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
-                await self.command(robot, "getMapInfo", {"mid": map_id, "type": "ol"})
-        except (CloudError, TimeoutError):
-            pass  # Optional diagnostics must not invalidate discovered rooms.
-        # Functional loading replaces the automatic two-piece Beta-5 probe.
-
     async def load_raw_map(self, robot, map_id, previous, status):
         """Optional atomic build, two workers, bounded budget, no surviving tasks."""
         if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == '0':
@@ -432,14 +371,12 @@ class YeediClient:
         loaded = decoded = failures = 0
         tasks = []
         stage = 'major_initial'
-        zero_probe = ZeroPixelProbe()
         try:
             async with asyncio.timeout(RAW_MAP_TIMEOUT):
                 body = await self.command(robot, 'getMajorMap')
                 if object_value(body.get('data')).get('mid') != map_id:
                     raise MapChanged('Current map changed')
                 major = parse_major(body.get('data'), map_id)
-                zero_probe.major(major.crcs)
                 del body
                 status['major_valid'] = True
                 status['required_piece_count_bucket'] = count_bucket(len(major.required))
@@ -451,8 +388,6 @@ class YeediClient:
                     for index in major.required:
                         if previous.major.crcs[index] == major.crcs[index]:
                             pieces[index] = previous.pieces[index]
-                            if pieces[index] is not None:
-                                zero_probe.decoded(pieces[index])
                 pending = iter(i for i in major.required if pieces[i] is None)
                 stage = 'piece_download'
 
@@ -462,19 +397,9 @@ class YeediClient:
                         response = await self.command(robot, 'getMinorMap', {
                             'mid': map_id, 'pieceIndex': index, 'type': 'ol'})
                         loaded += 1
-                        value = object_value(response.get('data')).get('pieceValue')
-                        zero_probe.encoded(value)
                         try:
                             pieces[index] = await asyncio.to_thread(decode_piece, response.get('data'), major, index)
                             decoded += 1
-                            zero_probe.decoded(pieces[index])
-                            if not zero_probe.crosscheck_claimed:
-                                zero_probe.crosscheck_claimed = True
-                                try:
-                                    zero_probe.result.update(await asyncio.to_thread(alternate_decode, value, pieces[index]))
-                                except Exception:
-                                    pass  # An optional crosscheck never invalidates primary pixels.
-                            del value
                         except MapFormatError:
                             failures += 1
                             status['failure_stage'] = 'piece_decode'
@@ -485,7 +410,6 @@ class YeediClient:
 
                 tasks = [asyncio.create_task(worker()) for _ in range(2)]
                 await asyncio.gather(*tasks)
-                status.update(pixel_buckets(pieces))
                 stage = 'unexpected'  # Verification transport/parse failure, not a proven change.
                 verify = await self.command(robot, 'getMajorMap')
                 if object_value(verify.get('data')).get('mid') != map_id:
@@ -525,73 +449,8 @@ class YeediClient:
             status['loaded_piece_count_bucket'] = count_bucket(loaded)
             status['decoded_piece_count_bucket'] = count_bucket(decoded)
             status['decode_failures_bucket'] = count_bucket(failures)
-            status['zero_pixel_probe'] = zero_probe.finish()
-
-    async def probe_map_transport(self, robot: Robot, map_id: str) -> None:
-        """Optional direct comparison, separate from functional map discovery."""
-        result = empty_probe()
-        self._transport[robot.did] = result
-        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == "0":
-            return
-        budget = asyncio.timeout(TRANSPORT_PROBE_TIMEOUT)
-        try:
-            async with budget:
-                async with asyncio.timeout(LEGACY_PROBE_TIMEOUT):
-                    body = await self.command(robot, "getMajorMap")
-                data = body.get("data")
-                result['direct_major_map_probe'] = major_shape(data)
-                if not isinstance(data,dict) or data.get('mid') != map_id:
-                    return
-                result['map_transport_probe']['direct_major_map']['usable_structure'] = True
-                indices = piece_indices(data.get('value'))
-                # No raw data or CRC tokens retained across any further await.
-                del data, body
-                if indices is None:
-                    return
-                result['map_transport_probe']['direct_major_map']['piece_list_detected'] = True
-                minor = result['direct_minor_map_probe']
-                for index in indices:
-                    minor['attempted_count'] += 1
-                    result['map_transport_probe']['direct_minor_map']['attempted'] = True
-                    try:
-                        async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
-                            response = await self.command(robot, "getMinorMap", {
-                                'mid':map_id, 'pieceIndex':index, 'type':'ol'})
-                        minor['accepted_count'] += 1
-                        payload = response.get('data')
-                        shape = minor_shape(payload)
-                        group = next((g for g in minor['formats'] if g['format'] == shape), None)
-                        if group is None:
-                            minor['formats'].append({'count':1,'format':shape})
-                        else:
-                            group['count'] += 1
-                        if isinstance(payload,dict) and payload.get('mid',map_id) == map_id:
-                            if any(isinstance(payload.get(k),str) and payload[k] for k in ('value','pieceValue')):
-                                result['map_transport_probe']['direct_minor_map']['nonempty_payload_seen'] = True
-                        del payload, response
-                    except (CommandTimeout, TimeoutError):
-                        minor['timeout_count'] += 1
-                    except CommandRejected:
-                        minor['rejected_count'] += 1
-                    except (InvalidAuth, VerificationRequired, DeviceOffline, RateLimited):
-                        break
-                    except CloudError:
-                        pass
-                    except asyncio.CancelledError:
-                        # Includes expiration of the aggregate diagnostic budget.
-                        if budget.expired():
-                            minor['timeout_count'] += 1
-                        raise
-                    finally:
-                        probe = self._structure.get(robot.did, {}).get('getMinorMap', {})
-                        minor['response_count'] += int(probe.get('response_received',False))
-        except (CloudError, TimeoutError, ValueError, TypeError, RecursionError):
-            pass  # Optional analysis never changes availability, rooms or services.
 
     async def rooms(self, robot: Robot, map_id: str) -> tuple[YeediRoom, ...]:
-        formats = []
-        polygon_count = 0
-        self._geometry[robot.did] = aggregate_formats(formats)
         body = await self.command(robot, "getMapSet", {"mid": map_id, "type": "ar"})
         data = object_value(body.get("data"))
         if "mid" in data and identifier(data["mid"]) != map_id:
@@ -608,7 +467,6 @@ class YeediClient:
             if rid is None or rid in rooms:
                 continue
             detail = item
-            observed_format = None
             if "value" not in item or not item.get("name"):
                 try:
                     request = {"mid": map_id, "type": "ar", "mssid": rid}
@@ -619,17 +477,12 @@ class YeediClient:
                     if (identifier(candidate.get("mssid")) == rid
                             and identifier(candidate.get("mid", map_id)) == map_id):
                         detail = item | candidate
-                        observed_format = value_format(candidate.get("value"), present="value" in candidate)
                 except (CloudError, TimeoutError):
                     pass
             name = detail.get("name")
             rooms[rid] = YeediRoom(
                 rid, name.strip() if isinstance(name, str) and name.strip() else fallback_name(len(rooms)),
                   identifier(detail.get("subtype")), polygon(detail.get("value"), detail.get("compress")))
-            if observed_format is not None:
-                formats.append(observed_format)
-                polygon_count += int(rooms[rid].polygon is not None)
-                self._geometry[robot.did] = aggregate_formats(formats, polygon_count)
         return tuple(rooms.values())
 
     async def positions(self, robot: Robot) -> tuple[RobotPosition | None, DockPosition | None]:
@@ -672,6 +525,3 @@ class YeediClient:
         """Clear memory only; the shared aiohttp session belongs to HA."""
         self.token = self.password = ""
         self.expires = 0
-        self._structure.clear()
-        self._geometry.clear()
-        self._transport.clear()

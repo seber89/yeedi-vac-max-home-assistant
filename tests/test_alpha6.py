@@ -27,7 +27,6 @@ def client(major=None, room=None):
     c = YeediClient(None, "PRIVATE_ACCOUNT", "PRIVATE_PASSWORD", "DE", "PRIVATE_CLIENT")
     c.authenticate = AsyncMock()
     c.positions = AsyncMock(return_value=(None, None))
-    c.probe_map_info = AsyncMock()  # Independently tested optional beta-4 probe.
     c.load_raw_map = AsyncMock(return_value=None)  # Independently tested Beta-6 loader.
     c._request = AsyncMock(side_effect=[CommandTimeout("synthetic"),
         envelope({"state":"arbitrary_uninterpreted_string"}),
@@ -41,7 +40,6 @@ async def test_primary_success_skips_legacy():
     c._request.side_effect = [envelope({"info":[{"mid":"known", "using":1}]})]
     assert await c.maps(ROBOT) == (YeediMap("known", None, True),)
     assert c._request.await_count == 1
-    assert c.structure_diagnostics(ROBOT)["getMajorMap"] == {"attempted":False}
 
 
 async def test_timeout_legacy_returns_only_current_candidate():
@@ -75,7 +73,6 @@ async def test_major_value_never_accessed():
     c.command = AsyncMock(side_effect=[CommandTimeout("synthetic"),
         {"data":{"state":"ignored"}}, {"data":GuardedData(mid="valid", value="opaque")}])
     assert await c.maps(ROBOT) == (YeediMap("valid", None, True),)
-    assert "opaque" not in json.dumps(c.structure_diagnostics(ROBOT))
 
 
 async def test_legacy_map_immediately_reads_rooms_and_safe_diagnostics(coordinator, caplog):
@@ -94,11 +91,6 @@ async def test_legacy_map_immediately_reads_rooms_and_safe_diagnostics(coordinat
     assert calls[-1].kwargs["json"]["payload"]["body"]["data"] == {"mid":"PRIVATE_MAP", "type":"ar"}
     result = await async_get_config_entry_diagnostics(None, SimpleNamespace(runtime_data=coordinator))
     assert "PRIVATE" not in json.dumps(result) + caplog.text
-    shape = result["structure_probe"][0]["getMapSet"]["levels"]["resp.body.data"]
-    assert shape["subsets_count"] == 1 and shape["subsets_type"] == "array"
-    assert shape["subset_example_fields"] == {
-        k:{"present":True, "type":"number" if k == "compress" else "string"}
-        for k in ("mssid", "name", "subtype", "value", "compress")}
 
 
 async def test_room_failure_keeps_map_but_exposes_no_rooms(coordinator):
@@ -110,7 +102,6 @@ async def test_room_failure_keeps_map_but_exposes_no_rooms(coordinator):
     assert state.metadata_valid and state.active_map.map_id == "PRIVATE_MAP"
     assert not state.rooms_valid and not coordinator.rooms["vac"] and not state.rooms
     assert 170 < state.next_map_refresh - time.monotonic() <= 180
-    assert c.structure_diagnostics(coordinator.robots[0])["getMapSet"]["response_received"]
 
 
 async def test_room_preflight_uses_same_legacy_discovery(coordinator):

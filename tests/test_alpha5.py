@@ -1,6 +1,5 @@
 """Original synthetic legacy-probe tests; no copied or live fixtures."""
 import asyncio
-import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -63,13 +62,7 @@ async def test_single_attempt_payloads_and_safe_structure(caplog):
     for call in calls:
         assert call.kwargs["retry"] is False
         assert call.kwargs["json"]["payload"]["body"]["data"] == {}
-    result = c.structure_diagnostics(ROBOT)
-    for name in ("getMapState", "getMajorMap"):
-        assert result[name]["command_success"]
-        fields = result[name]["levels"]["resp.body.data"]
-        assert fields["state_present"] and fields["state_type"] == "string"
-        assert fields["mid_present"] and fields["mid_type"] == "string"
-    assert "SECRET" not in json.dumps(result) + caplog.text
+    assert "SECRET" not in caplog.text
 
 
 @pytest.mark.parametrize("error", [CommandTimeout, CommandRejected])
@@ -79,8 +72,6 @@ async def test_first_probe_failure_still_allows_second_without_retry(error):
     c._request.side_effect = [error("SECRET"), successful]
     await c.probe_legacy_maps(ROBOT)
     assert c._request.await_count == 2
-    assert not c.structure_diagnostics(ROBOT)["getMapState"]["command_success"]
-    assert c.structure_diagnostics(ROBOT)["getMajorMap"]["command_success"]
 
 
 @pytest.mark.parametrize("error", [RateLimited, DeviceOffline, InvalidAuth])
@@ -91,7 +82,6 @@ async def test_backpressure_stops_probe_and_clears_previous_result(error):
     c._request.side_effect = error("SECRET")
     await c.probe_legacy_maps(ROBOT)
     assert c._request.await_count == 1
-    assert c.structure_diagnostics(ROBOT)["getMajorMap"] == {"attempted": False}
 
 
 async def test_probes_sequential_and_bounded():

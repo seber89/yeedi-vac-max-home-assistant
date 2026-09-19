@@ -1,13 +1,21 @@
-"""Allowlisted diagnostics: no credentials, identifiers or raw responses."""
+"""Compact allowlisted support diagnostics; no private cloud or map contents."""
 import time
 
-from .raw_map import safe_status
-from .zero_pixel_diagnostics import safe_export
-from .mqtt_diagnostics import empty_probe, comparison
+_BUCKETS = frozenset(("0", "1", "2-8", "9-32", "33-64", ">64"))
+_FAILURES = frozenset(("none", "major_initial", "piece_download", "piece_decode",
+                      "generation_changed", "raster_assembly", "no_visible_pixels",
+                      "png_generation", "unexpected"))
 
 
 def raw_diagnostics(state):
-    result = {key: state.raw_status.get(key, default) for key, default in safe_status().items()}
+    result = {}
+    for key in ("major_valid", "image_generated", "generation_verified"):
+        result[key] = state.raw_status.get(key) is True
+    for key in ("loaded_piece_count_bucket", "decoded_piece_count_bucket", "decode_failures_bucket"):
+        value = state.raw_status.get(key)
+        result[key] = value if type(value) is str and value in _BUCKETS else "0"
+    failure = state.raw_status.get("failure_stage")
+    result["failure_stage"] = failure if type(failure) is str and failure in _FAILURES else "unexpected"
     available = bool(state.metadata_valid and state.active_map and state.raw_map
                      and state.active_map.map_id == state.raw_map.major.map_id
                      and time.monotonic() < state.raw_valid_until)
@@ -17,35 +25,16 @@ def raw_diagnostics(state):
 
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
-    listener = getattr(coordinator, 'mqtt_probe', None)
-    mqtt = [listener.snapshot(robot) if listener is not None else empty_probe()
-            for robot in coordinator.robots]
     return {
-        "integration_version": "0.2.0-beta.6.4",
-        "mqtt_live_map_probe": mqtt,
-        "map_transport_comparison": [comparison(
-            safe_export(coordinator.spatial[robot.did].raw_status.get('zero_pixel_probe')), probe)
-            for robot, probe in zip(coordinator.robots, mqtt)],
-        "zero_pixel_probe": [safe_export(coordinator.spatial[robot.did].raw_status.get('zero_pixel_probe'))
-                             for robot in coordinator.robots],
+        "integration_version": "0.2.0-rc.1",
+        "last_update_success": bool(coordinator.last_update_success),
         "raw_map": [raw_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
-        "target_class": "04z443",
-        "region": "DE",
-        "last_update_success": coordinator.last_update_success,
-        "structure_probe": [coordinator.client.structure_diagnostics(robot)
-                            for robot in coordinator.robots],
-        "room_geometry_probe": [coordinator.client.geometry_diagnostics(robot)
-                                for robot in coordinator.robots],
-        **{section: [coordinator.client.transport_diagnostics(robot)[section]
-                     for robot in coordinator.robots] for section in (
-                         "direct_major_map_probe", "direct_minor_map_probe",
-                         "mqtt_map_probe", "map_transport_probe")},
         "robots": [
             {
                 "online": bool((coordinator.data or {}).get(robot.did, {}).get("online")),
                 "has_active_map": coordinator.spatial[robot.did].active_map is not None,
-                "metadata_valid": coordinator.spatial[robot.did].metadata_valid,
-                "rooms_valid": coordinator.spatial[robot.did].rooms_valid,
+                "metadata_valid": bool(coordinator.spatial[robot.did].metadata_valid),
+                "rooms_valid": bool(coordinator.spatial[robot.did].rooms_valid),
                 "has_rooms": bool(coordinator.spatial[robot.did].rooms),
                 "has_room_polygons": coordinator.spatial[robot.did].rooms_valid and any(
                     room.polygon for room in coordinator.spatial[robot.did].rooms),
