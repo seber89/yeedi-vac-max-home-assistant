@@ -1,6 +1,14 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.1** — finaler Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.2** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC2 stellt den begrenzten read-only getMapInfo-Aufruf vor dem Raw-Map-Laden
+wieder her. Dieser Ablauf war in Beta 6.4 vorhanden und wurde in RC1
+irrtümlich als reine Forschungsdiagnose entfernt. Der RC1-Hardwaretest zeigte
+danach vollständig dekodierte, aber leere Karten-Pieces. Ein notwendiger
+Map-Warmup ist die Arbeitshypothese; RC2 muss dies auf Hardware bestätigen.
+Keine MQTT-Diagnose oder TLS-Ausnahme kehrt zurück. Decoder, Darstellung,
+Cache und Steuerung bleiben unverändert.
 
 Unofficial community integration for Home Assistant.
 Not affiliated with, maintained by, or endorsed by Yeedi,
@@ -42,7 +50,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.1** herunterladen (nicht main).
+   **0.2.0-rc.2** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.

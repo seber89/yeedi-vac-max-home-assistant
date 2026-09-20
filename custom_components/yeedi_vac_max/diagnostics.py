@@ -26,7 +26,7 @@ def raw_diagnostics(state):
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return {
-        "integration_version": "0.2.0-rc.1",
+        "integration_version": "0.2.0-rc.2",
         "last_update_success": bool(coordinator.last_update_success),
         "raw_map": [raw_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
         "robots": [

@@ -363,6 +363,16 @@ class YeediClient:
                 continue
         return None
 
+    async def prepare_raw_map(self, robot: Robot, map_id: str) -> None:
+        """Bounded outline refresh before acquisition; discard the response."""
+        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == "0":
+            return
+        try:
+            async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
+                await self.command(robot, "getMapInfo", {"mid": map_id, "type": "ol"})
+        except (CloudError, TimeoutError):
+            pass  # Preparation failure must not block the normal raw-map load.
+
     async def load_raw_map(self, robot, map_id, previous, status):
         """Optional atomic build, two workers, bounded budget, no surviving tasks."""
         if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == '0':

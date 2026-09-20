@@ -1,7 +1,23 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.1. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.2. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC2 — bewährten Outline-Read vor RawMap wiederherstellen
+
+Hardwarebericht: RC1-Steuerung/Räume funktionieren, RawMap endet trotz
+erfolgreichem Decode und Generation-Check bei no_visible_pixels. Im Diff
+9e985ef → 7713032 fehlt der zuvor vor _raw_refresh ausgeführte getMapInfo-Read.
+Der vermutete Warmup-/Refresh-Effekt ist noch kein isolierter Hardwarebeweis.
+
+prepare_raw_map stellt exakt diesen Read-Ablauf wieder her: aktuelle validierte
+String-Map-ID, getMapInfo mit mid und type="ol", maximal MAP_REQUEST_TIMEOUT
+(40 Sekunden einschließlich bestehender Read-Retries). Antwort wird verworfen,
+keine Strukturdiagnose/Logs. CloudError/Timeout verhindern den anschließenden
+Raw-Load nicht; Cancellation wird weitergereicht. Keine Abfrage auf jedem
+gecachten Minuten-Poll und keine zusätzliche Vorbereitung im Raumkommando.
+Keine MQTT-/TLS-Ausnahme, keine Forschungsdiagnosen, keine Parser-/Renderänderung.
+RC2-Hardwaretest: Neustart, 2–3 Minuten warten, Image prüfen, kompakte Diagnose.
 
 ## RC1 — Forschung entfernt, bestätigte Funktion unverändert
 

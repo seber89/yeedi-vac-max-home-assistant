@@ -175,6 +175,7 @@ class YeediCoordinator(DataUpdateCoordinator):
             state.next_map_refresh = time.monotonic() + MAP_ERROR_BACKOFF
             # Retain cache but mark stale; future room commands must require validity.
         if state.metadata_valid and state.active_map is not None:
+            await self.client.prepare_raw_map(robot, state.active_map.map_id)
             await self._raw_refresh(robot)
 
     async def _raw_refresh(self, robot):

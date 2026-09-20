@@ -1,6 +1,23 @@
 # Prüfprotokoll — 19. September 2026
 
-Stand 0.2.0-rc.1 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-rc.2 auf feature/rooms-position-map; kein Merge nach main.
+
+## RC2 — 20. September 2026
+
+364 Tests bestanden: alle 346 RC1-Fälle plus 18 neue Vorbereitungsregressionen.
+Ältere Alpha-6-Fixture isoliert den neuen Vorbereitungsschritt; ihre bisherigen
+Discovery-/Room-Assertions bleiben erhalten. RC1-Versionserwartung aktualisiert.
+Keine Tests deaktiviert. Eine externe HA/aiohttp-DeprecationWarning.
+
+Geprüft: validierte ID, exaktes Read-Payload, begrenztes 40s-Budget,
+Cancellation, Reihenfolge getMapInfo vor Raw-Load, keine Abfrage bei fehlender
+Map oder gecachtem Poll, Fehlerisolation für Räume/Steuerung und keine privaten
+Diagnosewerte. Bestehende RC1-Sicherheits-/Cleanup-Tests unverändert wirksam.
+validate.py PASS: 33 Python / 5 JSON. Compile-/Import-/Manifestcheck PASS.
+Runtime-Diff: nur prepare_raw_map plus Aufruf vor _raw_refresh und Versionswerte.
+Decoder, Renderer, Cache, Image und Vacuum-/Raumkommandoimplementierung unverändert.
+Keine MQTT-Verbindung, TLS-Ausnahme oder Forschungsdiagnose wieder eingeführt.
+RC2-Hardwarebestätigung steht aus; kein echter Roboter während Entwicklung bedient.
 
 ## RC1
 

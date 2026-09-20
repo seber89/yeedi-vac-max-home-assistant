@@ -27,6 +27,7 @@ def client(major=None, room=None):
     c = YeediClient(None, "PRIVATE_ACCOUNT", "PRIVATE_PASSWORD", "DE", "PRIVATE_CLIENT")
     c.authenticate = AsyncMock()
     c.positions = AsyncMock(return_value=(None, None))
+    c.prepare_raw_map = AsyncMock()  # Functional preparation covered in test_rc2.
     c.load_raw_map = AsyncMock(return_value=None)  # Independently tested Beta-6 loader.
     c._request = AsyncMock(side_effect=[CommandTimeout("synthetic"),
         envelope({"state":"arbitrary_uninterpreted_string"}),
