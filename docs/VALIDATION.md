@@ -1,6 +1,17 @@
 # Prüfprotokoll — 19. September 2026
 
-Stand 0.2.0-rc.2 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-rc.3 auf feature/rooms-position-map; kein Merge nach main.
+
+## RC3
+
+384 Tests bestanden: 364 bisherige und 20 neue synthetische Overlayfälle.
+Beta-6.4-Bildtest an erlaubte SVG-Hülle angepasst; eingebettetes PNG wird
+weiterhin bytegleich und jede Rasterfarbe geprüft. Keine Tests deaktiviert.
+Mittelpunkt, X/Y-Richtung, vier Auflösungen, Crop/Padding/Scale, immutable
+Geometrie, Positions-/Dockupdates ohne erneute Assembly, fehlende/ungültige/
+außerhalb liegende Positionen, Privacy und bestehende Kontrollpfade geprüft.
+validate.py: 35 Python / 5 JSON. Compile-/Import-/Manifestcheck erfolgreich.
+Eine externe HA/aiohttp-DeprecationWarning. RC3-Overlay-Hardwaretest steht aus.
 
 ## RC2 — 20. September 2026
 

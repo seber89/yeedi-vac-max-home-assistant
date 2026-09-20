@@ -1,5 +1,7 @@
 """Synthetic visual-only regressions; no hardware map or coordinate fixtures."""
 import json
+import base64
+import xml.etree.ElementTree as ET
 import struct
 import time
 import zlib
@@ -99,15 +101,18 @@ def test_empty_or_invalid_display_rejected(side,data):
 
 @pytest.mark.parametrize('robot,dock', [(None,None), (RobotPosition(0,0),None),
     (None,DockPosition(100,100)), (RobotPosition(-100,20,45),DockPosition(10,80))])
-async def test_raw_image_without_polygons_never_guesses_overlay(coordinator,robot,dock):
+async def test_raw_image_without_polygons_preserves_png_under_overlay(coordinator,robot,dock):
     state = await install_raw(coordinator)
     state.robot_position, state.dock_position = robot,dock
     assert not any(room.polygon for room in state.rooms)
     image = YeediMapImage(coordinator,coordinator.robots[0])
-    assert image.available and image.content_type == 'image/png'
-    assert await image.async_image() == state.raw_map.png
-    # Valid positions alone do not establish raw-raster origin or unit transform.
-    w,h,pixels = png_pixels(await image.async_image())
+    assert image.available
+    output = await image.async_image()
+    if image.content_type == 'image/svg+xml':
+        embedded = ET.fromstring(output).find('{http://www.w3.org/2000/svg}image')
+        output = base64.b64decode(embedded.attrib['href'].split(',',1)[1])
+    assert output == state.raw_map.png
+    w,h,pixels = png_pixels(output)
     assert (w,h) == (48,48) and set(pixels) <= {0,1,2,3,4,5}
     assert image.unique_id == 'vac_map'
     assert not coordinator.client.mock_calls

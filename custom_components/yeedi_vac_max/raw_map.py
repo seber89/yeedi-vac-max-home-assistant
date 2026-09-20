@@ -164,7 +164,19 @@ MAX_DISPLAY_SCALE = 8
 MAX_DISPLAY_SIDE = 1040  # Full 1024px input plus bounded display-only padding.
 
 
-def _display_raster(raster, side):
+@dataclass(frozen=True, repr=False)
+class DisplayGeometry:
+    left: int
+    top: int
+    visible_width: int
+    visible_height: int
+    padding: int
+    scale: int
+    width: int
+    height: int
+
+
+def display_geometry(raster, side):
     """Crop all nonzero geometry, pad and enlarge only the presentation raster.
 
     Integer nearest-neighbor scaling keeps every original cell/color and aspect
@@ -191,6 +203,17 @@ def _display_raster(raster, side):
     if scale < 1:
         raise MapFormatError('Oversized display raster')
     output_width, output_height = width * scale, height * scale
+    return DisplayGeometry(min_x, min_y, visible_width, visible_height,
+                           padding, scale, output_width, output_height)
+
+
+def _display_raster(raster, side):
+    geometry = display_geometry(raster, side)
+    min_x, min_y = geometry.left, geometry.top
+    max_x = min_x + geometry.visible_width - 1
+    max_y = min_y + geometry.visible_height - 1
+    padding, scale = geometry.padding, geometry.scale
+    output_width, output_height = geometry.width, geometry.height
     # Padding is outside the crop even at the original grid edge. It is only
     # background in the presentation and never fed back into the source grid.
     border = bytes(output_width)

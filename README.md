@@ -1,6 +1,13 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.2** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.3** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC3 ergänzt auf der bestätigten RC2-RawMap einen blauen Roboterkreis und
+ein orangefarbenes Dockquadrat. Die Marker folgen dem vorhandenen
+Positions-Polling (etwa 60 Sekunden), ohne zusätzliche Cloudabfragen.
+Fehlende, ungültige oder außerhalb des sichtbaren Kartenausschnitts liegende
+Positionen werden ausgelassen. Kein Richtungspfeil, keine Winkelannahme.
+Die Overlay-Ausrichtung muss mit RC3 noch auf echter Hardware geprüft werden.
 
 RC2 stellt den begrenzten read-only getMapInfo-Aufruf vor dem Raw-Map-Laden
 wieder her. Dieser Ablauf war in Beta 6.4 vorhanden und wurde in RC1
@@ -50,7 +57,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.2** herunterladen (nicht main).
+   **0.2.0-rc.3** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.
@@ -89,9 +96,12 @@ show_state: false
 ```
 
 Nur vollständig validierte Karten werden angezeigt. Raw-Map-Anzeige benötigt
-keine Raum-Polygone. Robot-/Dockpositionen können intern vorhanden sein, ohne
-dass Marker auf der Raw-Karte eingezeichnet werden: eine ausreichend validierte
-Koordinatentransformation fehlt weiterhin. Keine geratenen Marker.
+keine Raum-Polygone. Der belegte Legacy-Ursprung im vollständigen Rasterzentrum
+und die tatsächliche Map-Auflösung bestimmen die Positionen; dieselbe Crop-,
+Padding- und Skalierungsberechnung wie beim PNG bestimmt die Bildkoordinaten.
+Ein selbst erzeugtes SVG bettet das unveränderte PNG ein und zeichnet die Marker.
+Ohne darstellbare Marker wird weiterhin das PNG ausgegeben.
+Positionsänderungen aktualisieren nur die Bildhülle, nicht Decoder oder Pieces.
 
 Die Karte wird nur im Arbeitsspeicher gehalten. Nach einem HA-Neustart wird sie
 frisch aus der Cloud geladen; die bestätigte erneute Verfügbarkeit ist keine

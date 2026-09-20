@@ -1,7 +1,33 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.2. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.3. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC3 — originale Raw-Map-Positionsmarker
+
+RC2-RawMap wurde vom Besitzer als vollständig verfügbar hardwarebestätigt.
+Nur als Interoperabilitätsfakt aus dem bereits referenzierten DeebotUniverse-
+Snapshot be8cbbda9159e8b750efc4727eccf66ae5ff80bf verwendet:
+Legacy-Koordinatenursprung im Mittelpunkt des vollständigen Rasters,
+Umrechnung anhand der tatsächlichen Auflösung major.pixel. Für 0°:
+source_x = x / major.pixel + side / 2;
+source_y = -y / major.pixel + side / 2.
+side = major.piece_size * major.cells.
+Keine Übernahme von GPL-Code, Renderer, SVG, Icons, Tests oder Fixtures.
+Keine Interpretation des Roboterwinkels oder anderer Kartenorientierungen.
+
+Gemeinsame display_geometry-Berechnung liefert immutable Crop/Padding/Scale.
+PNG und Overlay verwenden exakt diese Logik; PNG-Ausgabe bleibt unverändert.
+Bildkoordinate = (source - crop_start + padding) * scale.
+Die Image-Entity hält die Geometrie und Base64-PNG-Hülle einmal je RawMap im
+Speicher; Positionsupdates lösen weder Decode noch Assembly erneut aus.
+Render-Key enthält zusätzlich RawMap-Identität und beide Positionen.
+Nur numerische finite Positionen innerhalb des vollständigen Rasters UND
+des sichtbaren Source-Crops erhalten Marker. Andernfalls bleibt das PNG.
+SVG enthält nur internes PNG-data-URI und originale statische Vektormarker.
+Keine externen Assets, IDs oder Texte aus der Cloud im SVG; Koordinaten sind
+nur Bildinhalt, niemals Diagnose-/Logdaten. Keine neue Pollingrate oder Tasks.
+prepare_raw_map, Transport, Cache und Steuerung bleiben unverändert.
 
 ## RC2 — bewährten Outline-Read vor RawMap wiederherstellen
 
