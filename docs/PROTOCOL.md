@@ -1,7 +1,37 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.3. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.4. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC4 — konservativer Hintergrund und Orientierung
+
+Ein vorhandener kompletter Hintergrund derselben aktiven Map wird während
+cleaning/paused/returning nicht periodisch neu geladen. Keine Piece-Anzahl-
+oder Größenheuristik. Der bestehende Online-Poll hält dabei die zeitliche
+Bildgültigkeit aufrecht; Positionen werden unverändert normal gelesen.
+Ein separater lokaler letzter Pollstatus erkennt eine bekannte Non-Docked-
+zu-Docked-Flanke. Die Flanke wird vor optionalem I/O konsumiert, kein eigener
+Task und keine Schleife. Unknown/Offline/erster Docked-Poll sind keine Flanke.
+Der normale Raw-Pfad führt prepare_raw_map aus und lädt bei dieser Flanke
+frische Pieces ohne alten Piece-Cache. Nur vollständiger Erfolg ersetzt das
+Bild; Fehler behalten den bisherigen Hintergrund mit begrenzter Gültigkeit.
+Bestehender Fehler-Backoff und normale spätere Refresh-Intervalle bleiben.
+
+Originale Vierteldrehung im top-down Raster: für dx=x/pixel und dy=-y/pixel
+lauten die vier Kandidaten (dx,dy), (-dy,dx), (-dx,-dy), (dy,-dx), jeweils
+plus Rastermittelpunkt. Kein Gerätewinkel wird interpretiert oder erfunden.
+Kandidatenprüfung auf nichtnull Source-Rasterzellen; Roboter ohne Toleranz,
+Dock in einer begrenzten 3x3-Nachbarschaft (maximal eine Zelle je Achse).
+Keine Positionshistorie: nur verbleibende Winkelmenge im Image-Arbeitsspeicher.
+Ungültige/überhaupt nicht passende Beobachtungen sind keine Winkelevidenz.
+Widersprüchliche plausible Beobachtungen können eine leere Menge ergeben:
+dann keine Marker bis zur nächsten Generation. Mehrere Kandidaten bleiben
+markerlos. Eine eindeutige Orientierung wird für diese Generation gehalten;
+ein später unplausibler Marker wird einzeln ausgelassen, der andere bleibt.
+Neue Major-Generation setzt Kandidaten zurück. Identische Major-Generation
+behält sie auch bei neuem RawMap-Objekt. Keine Änderung der Rasterdarstellung,
+Crop/Padding/Scale, des Decoders oder der Positions-Abfragefrequenz.
+Alle RC4-Hardwarewirkungen sind noch zu prüfen.
 
 ## RC3 — originale Raw-Map-Positionsmarker
 

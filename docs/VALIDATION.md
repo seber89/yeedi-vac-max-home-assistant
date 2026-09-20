@@ -1,6 +1,20 @@
 # Prüfprotokoll — 19. September 2026
 
-Stand 0.2.0-rc.3 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-rc.4 auf feature/rooms-position-map; kein Merge nach main.
+
+## RC4
+
+412 Tests bestanden: 384 bisherige Fälle plus 28 neue. Eine RC3-Overlayfixture
+wurde von ungeprüfter fester Nullrotation auf eindeutig asymmetrische Geometrie
+umgestellt; ihre Bild-/Dock-/Cache-Prüfungen bleiben bestehen. Keine Tests
+deaktiviert; Steuerungs-/Raumtests unverändert.
+Neue Fälle: drei aktive Zustände, Erstladen ohne Hintergrund, einmalige
+Docking-Flanke mit Erfolg/Fehler und atomarem Austausch, initial docked,
+vier Drehungen bei drei Auflösungen, jeder eindeutig auswählbare Winkel,
+Kandidaten über Updates, Löcher im Raster, Mehrdeutigkeit/Widerspruch,
+Dock-Randtoleranz, unabhängige Marker, Generation-Reset und Privacy.
+Validate PASS: 36 Python / 5 JSON. Compile-/Import-/Manifestcheck PASS.
+Eine externe HA/aiohttp-DeprecationWarning. Kein RC4-Hardwaretest ausgeführt.
 
 ## RC3
 

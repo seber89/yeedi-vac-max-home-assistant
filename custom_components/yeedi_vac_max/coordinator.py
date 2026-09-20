@@ -62,6 +62,7 @@ class YeediCoordinator(DataUpdateCoordinator):
         self.spatial = {r.did: SpatialState() for r in robots}
         self.commands = {r.did: CommandState() for r in robots}
         self._observed = {}
+        self._map_activity = {}  # Poll observations only; independent of command guards.
 
     @property
     def rooms(self):
@@ -134,7 +135,7 @@ class YeediCoordinator(DataUpdateCoordinator):
             self.async_update_listeners()
             raise HomeAssistantError("Could not verify active map; no room command sent") from None
 
-    async def _spatial_refresh(self, robot, *, force=False):
+    async def _spatial_refresh(self, robot, *, force=False, docking_refresh=False):
         state = self.spatial[robot.did]
         try:
             async with asyncio.timeout(8):
@@ -142,8 +143,9 @@ class YeediCoordinator(DataUpdateCoordinator):
         except (CloudError, TimeoutError):
             state.robot_position = state.dock_position = None
         if not force and time.monotonic() < state.next_map_refresh:
-            if state.metadata_valid and state.active_map and time.monotonic() >= state.next_raw_refresh:
-                await self._raw_refresh(robot)
+            if state.metadata_valid and state.active_map and (
+                    docking_refresh or time.monotonic() >= state.next_raw_refresh):
+                await self._raw_refresh(robot, fresh=docking_refresh)
             return
         state.metadata_valid = False
         state.rooms_valid = False
@@ -175,22 +177,30 @@ class YeediCoordinator(DataUpdateCoordinator):
             state.next_map_refresh = time.monotonic() + MAP_ERROR_BACKOFF
             # Retain cache but mark stale; future room commands must require validity.
         if state.metadata_valid and state.active_map is not None:
-            await self.client.prepare_raw_map(robot, state.active_map.map_id)
-            await self._raw_refresh(robot)
+            await self._raw_refresh(robot, fresh=docking_refresh)
 
-    async def _raw_refresh(self, robot):
+    async def _raw_refresh(self, robot, *, fresh=False):
         """Optional image state, independent of rooms and controls."""
         state = self.spatial[robot.did]
         selected = state.active_map
         if selected is None or not state.metadata_valid:
             return
+        same_map = state.raw_map is not None and state.raw_map.major.map_id == selected.map_id
+        if (not fresh and same_map
+                and self._map_activity.get(robot.did) in {"cleaning", "paused", "returning"}):
+            # Keep the complete background, not a transient cleaning fragment.
+            state.raw_valid_until = max(state.raw_valid_until, time.monotonic() + MAP_INTERVAL)
+            return
         status = safe_status()
         state.raw_status = status
         try:
-            result = await self.client.load_raw_map(robot, selected.map_id, state.raw_map, status)
+            await self.client.prepare_raw_map(robot, selected.map_id)
+            result = await self.client.load_raw_map(
+                robot, selected.map_id, None if fresh else state.raw_map, status)
         except MapChanged:
-            state.raw_map = None
-            state.raw_valid_until = 0
+            if not fresh:
+                state.raw_map = None
+                state.raw_valid_until = 0
             result = None
         except Exception:
             # No logging: an unexpected exception might contain private data.
@@ -209,7 +219,10 @@ class YeediCoordinator(DataUpdateCoordinator):
             state.next_raw_refresh = now + MAP_INTERVAL
         else:
             state.next_raw_refresh = now + MAP_ERROR_BACKOFF
-            state.raw_valid_until = min(state.raw_valid_until, now + MAP_ERROR_BACKOFF)
+            if fresh and same_map:
+                state.raw_valid_until = max(state.raw_valid_until, now + MAP_ERROR_BACKOFF)
+            else:
+                state.raw_valid_until = min(state.raw_valid_until, now + MAP_ERROR_BACKOFF)
         self.async_update_listeners()
 
     async def async_refresh_map_data(self, robot):
@@ -224,8 +237,14 @@ class YeediCoordinator(DataUpdateCoordinator):
                 base = await self.client.snapshot(robot)
             self._remember(robot, base)
             if base.get("online"):
-                await self._spatial_refresh(robot)
+                previous = self._map_activity.get(robot.did)
+                current = base.get("activity")
+                docking = current == "docked" and previous in {"cleaning", "paused", "returning", "idle", "error"}
+                # Consume this edge before optional I/O; a failure is not another edge.
+                self._map_activity[robot.did] = current
+                await self._spatial_refresh(robot, docking_refresh=docking)
             else:
+                self._map_activity.pop(robot.did, None)
                 self.spatial[robot.did].robot_position = None
                 self.spatial[robot.did].dock_position = None
                 self.spatial[robot.did].metadata_valid = False

@@ -1,6 +1,19 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.3** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.4** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC4 bewahrt einen bestehenden Kartenhintergrund derselben aktiven Map während
+cleaning/paused/returning ohne periodischen Raw-Neubuild. Positionen werden
+weiter regulär gelesen. Ein beobachteter Übergang eines bekannten, online
+nicht angedockten Zustands zu docked löst einmalig einen frischen Kartenabruf
+aus. Wiederholtes docked allein löst keinen weiteren Sonderabruf aus.
+Ohne Karte im Arbeitsspeicher bleibt normales Laden möglich; kein Disk-Cache.
+
+Marker erscheinen erst bei eindeutiger Zuordnung aus 0/90/180/270 Grad.
+Die Kandidaten werden je Raw-Generation anhand belegter Rasterzellen eingegrenzt;
+für das Dock ist eine Rasterzelle Randtoleranz erlaubt. Mehrdeutigkeit bedeutet
+Karte ohne Marker. RC4-Lebenszyklus und Orientierung sind noch nicht auf
+Hardware bestätigt.
 
 RC3 ergänzt auf der bestätigten RC2-RawMap einen blauen Roboterkreis und
 ein orangefarbenes Dockquadrat. Die Marker folgen dem vorhandenen
@@ -57,7 +70,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.3** herunterladen (nicht main).
+   **0.2.0-rc.4** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.

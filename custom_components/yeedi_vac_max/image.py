@@ -50,7 +50,10 @@ class YeediMapImage(YeediEntity, ImageEntity):
             if raw:
                 try:
                     if self._raw_overlay is None or self._raw_overlay.raw is not state.raw_map:
+                        previous = self._raw_overlay
                         self._raw_overlay = RawOverlay(state.raw_map)
+                        if previous is not None and previous.raw.major == state.raw_map.major:
+                            self._raw_overlay.candidates = set(previous.candidates)
                     self._svg, self._attr_content_type = self._raw_overlay.render(
                         state.robot_position, state.dock_position)
                 except (ValueError, TypeError, OverflowError, AttributeError):

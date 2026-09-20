@@ -38,7 +38,7 @@ def test_no_mqtt_transport_or_unsafe_tls_configuration():
         assert forbidden not in source
     manifest = json.loads((COMPONENT / "manifest.json").read_text())
     assert manifest["requirements"] == []
-    assert manifest["version"] == "0.2.0-rc.3"
+    assert manifest["version"] == "0.2.0-rc.4"
 
 
 @pytest.mark.parametrize("private", ["PRIVATE_ID_TOKEN_TOPIC_CRC", {"PRIVATE": "COORDINATES"}, ["PRIVATE"], 987654321])

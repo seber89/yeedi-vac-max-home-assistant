@@ -44,8 +44,10 @@ def test_invalid_or_outside_marker_omitted(position):
 async def test_position_only_update_and_stationary_dock_no_reassembly(coordinator,monkeypatch):
     from custom_components.yeedi_vac_max import raw_overlay
     state = await install_raw(coordinator)
-    state.robot_position = RobotPosition(0,0)
-    state.dock_position = DockPosition(-50,-50)
+    from tests.test_rc4 import raw_fixture
+    state.raw_map = raw_fixture()
+    state.robot_position = RobotPosition(-250,150)
+    state.dock_position = DockPosition(-300,150)
     image = YeediMapImage(coordinator,coordinator.robots[0])
     first = await image.async_image()
     first_updated = image.image_last_updated
@@ -53,13 +55,13 @@ async def test_position_only_update_and_stationary_dock_no_reassembly(coordinato
     def forbidden(*args):
         raise AssertionError("Position update rebuilt raster")
     monkeypatch.setattr(raw_overlay,"assemble",forbidden)
-    state.robot_position = RobotPosition(25,0,180)
+    state.robot_position = RobotPosition(-225,150,180)
     image._sync_image()
     second = await image.async_image()
     assert first != second and image.image_last_updated >= first_updated
     assert ET.fromstring(second).find(".//*[@id='dock']").attrib == dock
-    assert ET.fromstring(second).find(".//*[@id='robot']").get("cx") == "28.000"
-    state.dock_position = DockPosition(0,-50)
+    assert ET.fromstring(second).find(".//*[@id='robot']").get("cx") == "20.000"
+    state.dock_position = DockPosition(-250,100)
     image._sync_image()
     assert await image.async_image() != second
     stable = await image.async_image()
