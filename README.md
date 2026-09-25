@@ -1,13 +1,24 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.4** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.5** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC5 ergänzt einen privaten lokalen Last-Good-Map-Cache über Home Assistants
+Storage. Gespeichert werden nur das fertig gerenderte Basis-PNG und die
+versionsgebundene Karten-/Gerätezuordnung. Keine Pieces, Cloudantworten,
+Positionen, Räume oder Zugangsdaten. Der Grundriss ist privat: HA-Storage
+und Backups entsprechend schützen. Nach Neustart kann zunächst dieses PNG
+ohne alte Positionsmarker erscheinen, während der normale Cloudabruf läuft.
+Timeouts, Nullpixel, ungültige Raum-/Map-Metadaten und Cache-Alter löschen
+das letzte gute Bild nicht. Eine bestätigt andere aktive Map-ID invalidiert es.
+Explizites isCharging=1/"1" hat bei gleichzeitigem Cleaning-Alert Vorrang.
+RC5 muss noch mehrere Tage auf echter Hardware getestet werden.
 
 RC4 bewahrt einen bestehenden Kartenhintergrund derselben aktiven Map während
 cleaning/paused/returning ohne periodischen Raw-Neubuild. Positionen werden
 weiter regulär gelesen. Ein beobachteter Übergang eines bekannten, online
 nicht angedockten Zustands zu docked löst einmalig einen frischen Kartenabruf
 aus. Wiederholtes docked allein löst keinen weiteren Sonderabruf aus.
-Ohne Karte im Arbeitsspeicher bleibt normales Laden möglich; kein Disk-Cache.
+Ohne bekannte Karte bleibt normales Laden möglich; RC5 ergänzt den PNG-Fallback.
 
 Marker erscheinen erst bei eindeutiger Zuordnung aus 0/90/180/270 Grad.
 Die Kandidaten werden je Raw-Generation anhand belegter Rasterzellen eingegrenzt;
@@ -70,7 +81,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.4** herunterladen (nicht main).
+   **0.2.0-rc.5** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.
@@ -116,12 +127,16 @@ Ein selbst erzeugtes SVG bettet das unveränderte PNG ein und zeichnet die Marke
 Ohne darstellbare Marker wird weiterhin das PNG ausgegeben.
 Positionsänderungen aktualisieren nur die Bildhülle, nicht Decoder oder Pieces.
 
-Die Karte wird nur im Arbeitsspeicher gehalten. Nach einem HA-Neustart wird sie
-frisch aus der Cloud geladen; die bestätigte erneute Verfügbarkeit ist keine
-Offline-Disk-Persistenz. Bei vorübergehenden Fehlern bleibt eine gültige Karte
-innerhalb der bestehenden begrenzten Fehlerfrist erhalten, niemals für eine
-andere Map-ID. Bis zum ersten erfolgreichen Laden kann die Image Entity
-vorübergehend nicht verfügbar sein.
+Die letzte gute Basis-Karte wird lokal privat und atomar gespeichert. Nach
+Neustart steht sie nach Geräteerkennung und Cache-Load als PNG-Fallback bereit,
+noch vor dem ersten räumlichen Cloud-Refresh. Aktuelle Marker benötigen wieder
+eine frische RawMap im Speicher; Positionen werden niemals persistiert.
+Nur ein vollständiger erfolgreicher Build der bestätigten aktiven Karte ersetzt
+den Cache. Temporäre Fehler und Zeitablauf verstecken das Bild nicht; Room-
+Kommandos bleiben trotzdem an ihre bisherigen Gültigkeitsprüfungen gebunden.
+Unload und Neustart erhalten den Cache. Eine positiv bestätigte andere aktive
+Map-ID verwirft die alte Zuordnung. Bei fehlendem/defektem Storage oder solange
+noch nie eine gute Karte geladen wurde, bleibt normales Cloud-Laden erforderlich.
 
 ## Befehle und Fehlerbehandlung
 

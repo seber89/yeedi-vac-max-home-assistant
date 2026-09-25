@@ -13,6 +13,7 @@ from .client import (CloudError, InvalidAuth, VerificationRequired, CommandUncer
                      MAP_REQUEST_TIMEOUT, MAP_DISCOVERY_TIMEOUT)
 from .map_data import YeediMap, YeediRoom, RobotPosition, DockPosition, identifier
 from .raw_map import RawMap, MapChanged, safe_status
+from .map_storage import MapStorage, SavedMap
 
 _LOGGER = logging.getLogger(__name__)
 MAP_INTERVAL = 3600
@@ -37,6 +38,23 @@ class SpatialState:
     raw_valid_until: float = 0
     next_raw_refresh: float = 0
     raw_status: dict = field(default_factory=safe_status)
+    saved_map: SavedMap | None = None
+    has_persisted_map: bool = False
+
+    @property
+    def image_map(self):
+        """Image trust is independent of transient room validity and age."""
+        candidate = self.raw_map or self.saved_map
+        if candidate is None:
+            return None
+        mid = candidate.major.map_id if isinstance(candidate, RawMap) else candidate.map_id
+        if self.metadata_valid and self.active_map and self.active_map.map_id != mid:
+            return None
+        return candidate
+
+    @property
+    def using_persisted_fallback(self):
+        return self.saved_map is not None and self.image_map is self.saved_map
 
     @property
     def room_generation(self):
@@ -63,6 +81,27 @@ class YeediCoordinator(DataUpdateCoordinator):
         self.commands = {r.did: CommandState() for r in robots}
         self._observed = {}
         self._map_activity = {}  # Poll observations only; independent of command guards.
+        self.map_storage = MapStorage(hass, entry.entry_id)
+
+    async def async_load_saved_maps(self):
+        for did, saved in (await self.map_storage.load(self.spatial)).items():
+            self.spatial[did].saved_map = saved
+            self.spatial[did].has_persisted_map = True
+        return any(state.saved_map is not None for state in self.spatial.values())
+
+    async def _confirm_image_map(self, state, robot, selected):
+        """Only a positively identified different map invalidates a last-good image."""
+        if selected is None or identifier(selected.map_id) != selected.map_id or selected.map_id == '0':
+            return
+        previous_ids = {item for item in (
+            state.raw_map.major.map_id if state.raw_map else None,
+            state.saved_map.map_id if state.saved_map else None) if item is not None}
+        if previous_ids and previous_ids != {selected.map_id}:
+            state.raw_map = state.saved_map = None
+            state.has_persisted_map = False
+            state.raw_valid_until = state.next_raw_refresh = 0
+            state.raw_status = safe_status()
+            await self.map_storage.discard(robot.did)
 
     @property
     def rooms(self):
@@ -157,9 +196,7 @@ class YeediCoordinator(DataUpdateCoordinator):
             selected = active[0] if len(active) == 1 else None
             if selected != state.active_map:
                 state.rooms = ()
-                state.raw_map = None
-                state.raw_valid_until = state.next_raw_refresh = 0
-                state.raw_status = safe_status()
+            await self._confirm_image_map(state, robot, selected)
             state.maps, state.active_map = maps, selected
             state.metadata_valid = True
             self.async_update_listeners()
@@ -185,7 +222,8 @@ class YeediCoordinator(DataUpdateCoordinator):
         selected = state.active_map
         if selected is None or not state.metadata_valid:
             return
-        same_map = state.raw_map is not None and state.raw_map.major.map_id == selected.map_id
+        same_map = ((state.raw_map is not None and state.raw_map.major.map_id == selected.map_id)
+                    or (state.saved_map is not None and state.saved_map.map_id == selected.map_id))
         if (not fresh and same_map
                 and self._map_activity.get(robot.did) in {"cleaning", "paused", "returning"}):
             # Keep the complete background, not a transient cleaning fragment.
@@ -198,23 +236,25 @@ class YeediCoordinator(DataUpdateCoordinator):
             result = await self.client.load_raw_map(
                 robot, selected.map_id, None if fresh else state.raw_map, status)
         except MapChanged:
-            if not fresh:
-                state.raw_map = None
-                state.raw_valid_until = 0
             result = None
         except Exception:
             # No logging: an unexpected exception might contain private data.
             status['failure_stage'] = 'unexpected'
             result = None
         if state.active_map != selected or not state.metadata_valid:
-            state.raw_map = None
-            state.raw_valid_until = 0
+            if state.metadata_valid:
+                await self._confirm_image_map(state, robot, state.active_map)
             state.raw_status = safe_status()
             state.raw_status['failure_stage'] = 'generation_changed'
             return
         now = time.monotonic()
         if isinstance(result, RawMap) and result.major.map_id == selected.map_id:
+            saved = SavedMap(selected.map_id, result.png)
+            persisted = await self.map_storage.save(robot.did, saved)
             state.raw_map = result
+            if persisted:
+                state.saved_map = saved
+                state.has_persisted_map = True
             state.raw_valid_until = now + MAP_INTERVAL + MAP_ERROR_BACKOFF
             state.next_raw_refresh = now + MAP_INTERVAL
         else:

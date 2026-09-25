@@ -273,7 +273,7 @@ async def test_raw_cache_refresh_and_failure_grace(coordinator):
     await coordinator._spatial_refresh(robot)
     assert state.raw_valid_until == deadline
     state.raw_valid_until = 0
-    assert not YeediMapImage(coordinator,robot).available
+    assert YeediMapImage(coordinator,robot).available  # RC5: age does not erase a last-good image.
 
 
 async def test_map_switch_clears_before_loading_and_stale_inflight(coordinator):
@@ -322,11 +322,12 @@ async def test_decode_failure_bucket_and_no_cache():
     assert status['decode_failures_bucket'] != '0' and not status['complete']
 
 
-async def test_changed_generation_clears_previous_image(coordinator):
+async def test_changed_generation_retains_previous_image_until_confirmed_other_map(coordinator):
     state = await install_raw(coordinator)
+    previous = state.raw_map
     coordinator.client.load_raw_map.side_effect = MapChanged('changed')
     await coordinator._raw_refresh(coordinator.robots[0])
-    assert state.raw_map is None and state.raw_valid_until == 0
+    assert state.raw_map is previous
     assert state.metadata_valid
 
 

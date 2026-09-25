@@ -1,4 +1,4 @@
-"""Coordinator-only map image; no independent cloud requests or disk cache."""
+"""Coordinator-only map image, including the private last-good PNG fallback."""
 import time
 
 from homeassistant.components.image import ImageEntity
@@ -8,6 +8,7 @@ from homeassistant.util import dt as dt_util
 from .entity import YeediEntity
 from .svg_map import render_map
 from .raw_overlay import RawOverlay
+from .raw_map import RawMap
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -29,11 +30,11 @@ class YeediMapImage(YeediEntity, ImageEntity):
 
     def _current_key(self):
         state = self.coordinator.spatial[self.robot.did]
-        if (super().available and state.metadata_valid and state.active_map and state.raw_map
-                and state.raw_map.major.map_id == state.active_map.map_id
-                and time.monotonic() < state.raw_valid_until):
+        if isinstance(state.image_map, RawMap):
             return ('raw', state.raw_map.major, id(state.raw_map),
                     state.robot_position, state.dock_position)
+        if state.image_map is not None:
+            return ('saved', id(state.saved_map))
         valid = (super().available and state.active_map is not None
                  and state.metadata_valid and state.rooms_valid
                  and time.monotonic() < state.next_map_refresh)
@@ -47,7 +48,11 @@ class YeediMapImage(YeediEntity, ImageEntity):
             self._render_key = key
             raw = key is not None and len(key) == 5 and key[0] == 'raw' and state.raw_map is not None
             self._attr_content_type = 'image/png' if raw else 'image/svg+xml'
-            if raw:
+            if key is not None and key[0] == 'saved':
+                self._raw_overlay = None
+                self._svg = state.saved_map.png
+                self._attr_content_type = 'image/png'
+            elif raw:
                 try:
                     if self._raw_overlay is None or self._raw_overlay.raw is not state.raw_map:
                         previous = self._raw_overlay

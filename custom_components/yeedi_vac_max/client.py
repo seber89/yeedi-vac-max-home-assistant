@@ -132,6 +132,8 @@ def command_body(response: dict, *, writing: bool = False) -> dict:
 def activity(clean: dict, charge: dict) -> str | None:
     """Only return states evidenced by the current response."""
     if clean.get("trigger") == "alert":
+        if type(charge.get("isCharging")) in (int, str) and charge.get("isCharging") in (1, "1"):
+            return "docked"
         return "error"
     state = clean.get("state")
     motion = object_value(clean.get("cleanState", {})).get("motionState")

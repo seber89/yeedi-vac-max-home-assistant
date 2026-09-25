@@ -17,22 +17,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     client = YeediClient(async_get_clientsession(hass), entry.data[CONF_USERNAME],
                          entry.data[CONF_PASSWORD], entry.data[CONF_COUNTRY],
                          entry.data["device_id"])
+    image_forwarded = False
     try:
         async with asyncio.timeout(60):
             robots = await client.devices()
         if not robots:
             raise ConfigEntryNotReady("No Vac Max 04z443 found in this Yeedi account")
         coordinator = YeediCoordinator(hass, entry, client, robots)
-        await coordinator.async_config_entry_first_refresh()
+        cached = await coordinator.async_load_saved_maps()
         entry.runtime_data = coordinator
-        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        if cached:
+            # Publish the private fallback before waiting for spatial cloud reads.
+            # No extra task or polling loop; other platforms retain normal setup.
+            await hass.config_entries.async_forward_entry_setups(entry, [Platform.IMAGE])
+            image_forwarded = True
+        await coordinator.async_config_entry_first_refresh()
+        await hass.config_entries.async_forward_entry_setups(
+            entry, [platform for platform in PLATFORMS if not image_forwarded or platform != Platform.IMAGE])
     except (InvalidAuth, VerificationRequired):
+        if image_forwarded:
+            await hass.config_entries.async_unload_platforms(entry, [Platform.IMAGE])
         client.close()
         raise ConfigEntryAuthFailed("Please check your Yeedi account in the integration setup") from None
     except (CloudError, TimeoutError):
+        if image_forwarded:
+            await hass.config_entries.async_unload_platforms(entry, [Platform.IMAGE])
         client.close()
         raise ConfigEntryNotReady("Cannot connect to Yeedi cloud") from None
     except BaseException:
+        if image_forwarded:
+            await hass.config_entries.async_unload_platforms(entry, [Platform.IMAGE])
         client.close()
         raise
     return True

@@ -31,7 +31,7 @@ def test_signature_is_sorted_and_does_not_mutate():
     ({"state": "clean", "cleanState": {"motionState": "pause"}}, {}, "paused"),
     ({"state": "goCharging"}, {}, "returning"),
     ({"state": "idle"}, {}, "idle"),
-    ({"trigger": "alert"}, {"isCharging": 1}, "error"),
+    ({"trigger": "alert"}, {"isCharging": 1}, "docked"),
     ({"state": "future-value"}, {}, None),
 ])
 def test_states(clean, charge, expected):

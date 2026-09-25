@@ -146,7 +146,8 @@ async def test_diagnostics_only_flags(coordinator):
     state.rooms = (YeediRoom("secret-room", "secret-name", polygon=((1., 2.), (3., 4.), (5., 6.))),)
     state.robot_position = RobotPosition(98765, 43210)
     result = await async_get_config_entry_diagnostics(None, SimpleNamespace(runtime_data=coordinator))
-    assert all(isinstance(v, bool) for v in result["robots"][0].values())
+    assert result['robots'][0]['activity'] == 'unknown'
+    assert all(isinstance(v, bool) for k, v in result["robots"][0].items() if k != 'activity')
     assert "secret" not in str(result) and "98765" not in str(result)
 
 

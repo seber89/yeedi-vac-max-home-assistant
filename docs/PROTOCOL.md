@@ -1,7 +1,41 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.4. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.5. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC5 — private Last-Good-Map und eng begrenzte Statuspriorität
+
+HA Store schema version 1, private=True, atomic_writes=True. Entry-scoped,
+mit exakter Geräte-ID als lokaler Zuordnung; keine Name-/Modellmigration.
+Pro Gerät ausschließlich Map-ID und Base64 des fertigen Basis-PNG.
+Keine Rohantworten, Pieces, CRCs, Positions-/Raumdaten oder Credentials.
+PNG-Länge, Container-CRC, Chunkfolge und begrenzte Bilddimensionen werden
+beim Laden geprüft; unbekannte/defekte Daten sind optional und werden ignoriert.
+Der lokale Grundriss und seine Zuordnung sind privat, nie Diagnose-/Loginhalt.
+
+Cache-Load vor erstem Cloud-Refresh; bei Treffer wird die Image-Plattform zuerst
+bereitgestellt. Kein zusätzlicher Background-Task. Bestehender Setup-/Pollingpfad
+läuft weiter. Der PNG-Fallback enthält keine Marker; die RC4-Overlaylogik auf
+frischen RawMaps bleibt unverändert. Erfolgreiche Builds werden über den
+vorhandenen verifizierten Rendererpfad gespeichert und ersetzen die Anzeige
+erst vollständig. Storagefehler dürfen das aktuelle gültige In-Memory-Bild
+nicht verhindern. Unload/Neustart löschen nichts.
+
+Bildvertrauen ist getrennt von Room-Vertrauen: metadata_valid, rooms_valid
+und raw_valid_until sperren weiterhin nicht die zuvor validierte Bildkarte.
+raw_valid_until ist kein Anzeige-Ablaufdatum mehr; next_raw_refresh und die
+bestehenden Intervalle/Backoffs steuern Abrufversuche. MapChanged während
+eines Builds verwirft diesen Build, nicht die Last-Good-Map. Nur eine eindeutig
+erkannte andere aktive Map-ID invalidiert den alten Speicher-/Disk-Cache;
+keine aktive Karte, unklare Discovery und Fehler reichen dafür nicht aus.
+Keine Piece-Anzahl-/Bildgrößenheuristik. RC4-Aktivitäts- und Dockingflanken-
+Verhalten bleibt erhalten, einschließlich eines geladenen PNG-Hintergrunds.
+
+Bei trigger=alert gewinnt ausschließlich isCharging als Integer 1 oder String
+"1" gegenüber dem Alert. Ohne diese Bestätigung bleibt alert ein Fehler.
+Alle übrigen bisherigen Aktivitätsregeln und Steuerpfade sind unverändert.
+Supportdiagnose ergänzt nur allowlist activity und zwei Cache-Booleans.
+Keine Hardwarebestätigung für RC5; mehrtägiger Test erforderlich.
 
 ## RC4 — konservativer Hintergrund und Orientierung
 

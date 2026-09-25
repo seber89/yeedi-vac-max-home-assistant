@@ -89,6 +89,7 @@ async def test_setup_unload(hass):
     client.devices = AsyncMock(return_value=[Robot("vac", "res", "Vac")])
     coordinator = MagicMock()
     coordinator.async_config_entry_first_refresh = AsyncMock()
+    coordinator.async_load_saved_maps = AsyncMock(return_value=False)
     coordinator.client = client
     with patch("custom_components.yeedi_vac_max.YeediClient", return_value=client), patch("custom_components.yeedi_vac_max.YeediCoordinator", return_value=coordinator), patch("custom_components.yeedi_vac_max.async_get_clientsession"), patch.object(hass.config_entries, "async_forward_entry_setups", new=AsyncMock()), patch.object(hass.config_entries, "async_unload_platforms", new=AsyncMock(return_value=True)):
         assert await async_setup_entry(hass, entry)

@@ -38,7 +38,7 @@ def test_no_mqtt_transport_or_unsafe_tls_configuration():
         assert forbidden not in source
     manifest = json.loads((COMPONENT / "manifest.json").read_text())
     assert manifest["requirements"] == []
-    assert manifest["version"] == "0.2.0-rc.4"
+    assert manifest["version"] == "0.2.0-rc.5"
 
 
 @pytest.mark.parametrize("private", ["PRIVATE_ID_TOKEN_TOPIC_CRC", {"PRIVATE": "COORDINATES"}, ["PRIVATE"], 987654321])
@@ -55,7 +55,8 @@ async def test_compact_allowlisted_diagnostics(coordinator, caplog, private):
     assert raw["failure_stage"] == "unexpected"
     assert raw["loaded_piece_count_bucket"] == "0"
     assert not raw["major_valid"]
-    assert all(type(value) is bool for value in output["robots"][0].values())
+    assert output['robots'][0]['activity'] == 'unknown'
+    assert all(type(value) is bool for key, value in output["robots"][0].items() if key != 'activity')
     exported = json.dumps(output) + caplog.text
     assert "PRIVATE" not in exported and "987654321" not in exported
 

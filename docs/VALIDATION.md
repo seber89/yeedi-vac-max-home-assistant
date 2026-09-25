@@ -1,6 +1,21 @@
 # Prüfprotokoll — 19. September 2026
 
-Stand 0.2.0-rc.4 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-rc.5 auf feature/rooms-position-map; kein Merge nach main.
+
+## RC5 — 25. September 2026
+
+457 Tests bestanden (412 bestehende Fälle plus 45 neue). Keine deaktivierten
+Tests. Angepasst sind ausschließlich widersprechende alte Erwartungen:
+Bildablauf/Generationfehler, Charging-vor-Alert, neue Activity-Allowlist und
+Setup-Storage-Mock sowie Versionsangabe. Steuerungs-/Room- und Overlaytests
+bleiben erhalten. Echte HA-Store-Schreib-/Ladevorgänge mit synthetischen PNGs
+prüfen Neustartfallback, private atomare Speicherung, keine sensitiven Felder,
+Nullpixel/Timeout/Cloud-/Generationfehler, ungültige Metadaten, Alter,
+Docking-Einmalabruf, Map-ID-Wechsel, aktive Zustände, defekten Storage,
+Schreibfehler, unveränderte PNGs und frühe Image-Bereitstellung vor Cloud-Refresh.
+Validate: 38 Python / 5 JSON. Compile-/Import-/Manifestprüfung erfolgreich.
+Eine externe HA/aiohttp-DeprecationWarning. Keine RC5-Hardwarebestätigung;
+mehrtägiger Hardwaretest erforderlich.
 
 ## RC4
 
