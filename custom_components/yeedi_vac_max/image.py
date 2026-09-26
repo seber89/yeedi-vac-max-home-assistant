@@ -1,0 +1,84 @@
+"""Coordinator-only map image, including the private last-good PNG fallback."""
+import time
+
+from homeassistant.components.image import ImageEntity
+from homeassistant.core import callback
+from homeassistant.util import dt as dt_util
+
+from .entity import YeediEntity
+from .svg_map import render_map
+from .raw_overlay import RawOverlay
+from .raw_map import RawMap
+
+
+async def async_setup_entry(hass, entry, async_add_entities):
+    coordinator = entry.runtime_data
+    async_add_entities(YeediMapImage(coordinator, robot) for robot in coordinator.robots)
+
+
+class YeediMapImage(YeediEntity, ImageEntity):
+    _attr_name = "Map"
+    _attr_content_type = "image/svg+xml"
+
+    def __init__(self, coordinator, robot):
+        ImageEntity.__init__(self, coordinator.hass)
+        YeediEntity.__init__(self, coordinator, robot, "map")
+        self._render_key = None
+        self._svg = None
+        self._raw_overlay = None
+        self._sync_image()
+
+    def _current_key(self):
+        state = self.coordinator.spatial[self.robot.did]
+        if isinstance(state.image_map, RawMap):
+            return ('raw', state.raw_map.major, id(state.raw_map),
+                    state.robot_position, state.dock_position)
+        if state.image_map is not None:
+            return ('saved', id(state.saved_map))
+        valid = (super().available and state.active_map is not None
+                 and state.metadata_valid and state.rooms_valid
+                 and time.monotonic() < state.next_map_refresh)
+        return (state.active_map.map_id, state.room_generation, state.rooms,
+               state.robot_position, state.dock_position) if valid else None
+
+    def _sync_image(self):
+        state = self.coordinator.spatial[self.robot.did]
+        key = self._current_key()
+        if key != self._render_key:
+            self._render_key = key
+            raw = key is not None and len(key) == 5 and key[0] == 'raw' and state.raw_map is not None
+            self._attr_content_type = 'image/png' if raw else 'image/svg+xml'
+            if key is not None and key[0] == 'saved':
+                self._raw_overlay = None
+                self._svg = state.saved_map.png
+                self._attr_content_type = 'image/png'
+            elif raw:
+                try:
+                    if self._raw_overlay is None or self._raw_overlay.raw is not state.raw_map:
+                        previous = self._raw_overlay
+                        self._raw_overlay = RawOverlay(state.raw_map)
+                        if previous is not None and previous.raw.major == state.raw_map.major:
+                            self._raw_overlay.candidates = set(previous.candidates)
+                    self._svg, self._attr_content_type = self._raw_overlay.render(
+                        state.robot_position, state.dock_position)
+                except (ValueError, TypeError, OverflowError, AttributeError):
+                    # Optional display markers must never hide a validated map.
+                    self._svg = state.raw_map.png
+                    self._attr_content_type = 'image/png'
+            else:
+                self._raw_overlay = None
+                self._svg = render_map(state.rooms, state.robot_position, state.dock_position) if key else None
+            self._attr_image_last_updated = dt_util.utcnow()
+
+    @property
+    def available(self):
+        return self._current_key() == self._render_key and self._svg is not None
+
+    @callback
+    def _handle_coordinator_update(self):
+        self._sync_image()
+        super()._handle_coordinator_update()
+
+    async def async_image(self):
+        # The image endpoint may be accessed even while the entity is unavailable.
+        return self._svg if self.available else None

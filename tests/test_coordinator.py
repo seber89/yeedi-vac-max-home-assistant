@@ -20,6 +20,9 @@ async def coordinator(tmp_path):
                         version=1, minor_version=1, source="user", unique_id="DE:user",
                         discovery_keys=MappingProxyType({}), subentries_data=[])
     client = AsyncMock()
+    client.positions.return_value = (None, None)
+    client.maps.return_value = ()
+    client.snapshot.return_value = {"online": True, "activity": "idle"}
     robot = Robot("vac", "res", "Vac")
     instance = YeediCoordinator(hass, entry, client, [robot])
     yield instance
@@ -55,4 +58,4 @@ async def test_acknowledged_command_refreshes(coordinator):
     coordinator.async_request_refresh = AsyncMock()
     await coordinator.execute(coordinator.robots[0], "charge", {"act": "go"})
     coordinator.client.command.assert_awaited_once_with(coordinator.robots[0], "charge", {"act": "go"}, writing=True)
-    coordinator.async_request_refresh.assert_awaited_once()
+    coordinator.client.snapshot.assert_awaited_once()

@@ -18,6 +18,10 @@ from uuid import uuid4
 import aiohttp
 
 from .const import TARGET_CLASS_ID
+from .raw_map import RawMap, MapFormatError, MapChanged, parse_major, decode_piece, render_png, count_bucket
+from .raw_map import MapRenderError
+from .map_data import (YeediMap, YeediRoom, RobotPosition, DockPosition,
+                       identifier, position, polygon, fallback_name)
 
 # Public Yeedi application signing identifiers, NOT user credentials.
 # Provenance: ecovacs-deebot.js constants.js, pinned in docs/PROTOCOL.md.
@@ -27,6 +31,16 @@ AUTH_KEY = "1581923437995"
 AUTH_SECRET = "304a71592690995b2bb304e66b5ddee6"
 PORTAL = "https://portal-eu.ecouser.net/api/"
 FAN_SPEEDS = {"Quiet": 1000, "Normal": 0, "Max": 1}
+HTTP_TIMEOUT = 15
+READ_ATTEMPTS = 2
+READ_RETRY_DELAY = 1
+READ_RETRY_BUDGET = HTTP_TIMEOUT * READ_ATTEMPTS + READ_RETRY_DELAY * (READ_ATTEMPTS - 1)
+LEGACY_PROBE_TIMEOUT = HTTP_TIMEOUT + 3
+MAP_REQUEST_TIMEOUT = READ_RETRY_BUDGET + 9
+YEEDI_MAP_INFO_TIMEOUT = READ_RETRY_BUDGET + 4  # Optional read, including existing safe retry.
+MAP_DISCOVERY_TIMEOUT = MAP_REQUEST_TIMEOUT + 2 * LEGACY_PROBE_TIMEOUT + 1
+LEGACY_COMMANDS = ("getMapState", "getMajorMap")
+RAW_MAP_TIMEOUT = 75
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -58,6 +72,14 @@ class CommandRejected(CloudError):
     """Device rejected a command."""
 
 
+class CommandUncertain(CloudError):
+    """No reliable acknowledgement; do not repeat the write."""
+
+
+class CommandTimeout(CommandUncertain, CannotConnect):
+    """Request timed out with unknown device-side outcome."""
+
+
 def md5(value: str) -> str:
     """MD5 is mandated by the cloud protocol, not used for local password storage."""
     return hashlib.md5(value.encode(), usedforsecurity=False).hexdigest()
@@ -87,26 +109,32 @@ def command_body(response: dict, *, writing: bool = False) -> dict:
     error = numeric_code(response.get("errno"))
     if error in {"4200", "500"}:
         raise DeviceOffline("Device offline or response timed out")
+    if response.get("ret") == "fail":
+        raise CommandRejected(f"Portal rejected command (code {error})")
     if response.get("ret") != "ok":
-        raise CloudError(f"Portal rejected command (code {error})")
+        raise CommandUncertain("Portal acknowledgement missing")
     payload = response.get("resp")
     if isinstance(payload, str):
         try:
             payload = json.loads(payload)
         except (ValueError, TypeError):
-            raise CloudError("Invalid device response") from None
-    body = object_value(object_value(payload).get("body"))
+            raise CommandUncertain("Invalid device response") from None
+    if not isinstance(payload, dict) or not isinstance(payload.get("body"), dict):
+        raise CommandUncertain("Device response structure missing")
+    body = payload["body"]
     code = body.get("code")
     if code is not None and str(code) != "0":
         raise CommandRejected(f"Device rejected command (code {numeric_code(code)})")
     if writing and code is None:
-        raise CloudError("Device acknowledgement missing")
+        raise CommandUncertain("Device acknowledgement missing")
     return body
 
 
 def activity(clean: dict, charge: dict) -> str | None:
     """Only return states evidenced by the current response."""
     if clean.get("trigger") == "alert":
+        if type(charge.get("isCharging")) in (int, str) and charge.get("isCharging") in (1, "1"):
+            return "docked"
         return "error"
     state = clean.get("state")
     motion = object_value(clean.get("cleanState", {})).get("motionState")
@@ -150,11 +178,11 @@ class YeediClient:
 
     async def _request(self, method: str, url: str, *, retry: bool = False, **kwargs) -> dict:
         """Bound requests; no retries for writes or login, no raw exception logging."""
-        for attempt in range(2 if retry else 1):
+        for attempt in range(READ_ATTEMPTS if retry else 1):
             try:
                 async with self._requests:
                     async with self.session.request(
-                        method, url, timeout=aiohttp.ClientTimeout(total=15),
+                        method, url, timeout=aiohttp.ClientTimeout(total=HTTP_TIMEOUT),
                         allow_redirects=False, **kwargs
                     ) as response:
                         if response.status in (401, 403):
@@ -167,16 +195,23 @@ class YeediClient:
                         if response.status != 200:
                             raise CloudError("Unexpected HTTP response")
                         result = await response.json(content_type=None)
+                        if not isinstance(result, dict):
+                            raise CommandUncertain("Invalid cloud response structure")
                         return object_value(result)
             except RateLimited:
                 raise
-            except (aiohttp.ClientError, TimeoutError, CannotConnect):
+            except TimeoutError:
                 if attempt == 0 and retry:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(READ_RETRY_DELAY)
+                    continue
+                raise CommandTimeout("Cloud request timed out; outcome unknown") from None
+            except (aiohttp.ClientError, CannotConnect):
+                if attempt == 0 and retry:
+                    await asyncio.sleep(READ_RETRY_DELAY)
                     continue
                 raise CannotConnect("Cannot reach Yeedi cloud") from None
             except (ValueError, TypeError):
-                raise CloudError("Invalid JSON from cloud") from None
+                raise CommandUncertain("Invalid JSON from cloud") from None
         raise CannotConnect("Cannot reach Yeedi cloud")
 
     @staticmethod
@@ -254,11 +289,20 @@ class YeediClient:
                 devices[did] = Robot(did, resource, str(item.get("nick") or "Yeedi Vac Max"))
         return list(devices.values())
 
-    async def command(self, robot: Robot, name: str, data: dict | None = None,
+    async def command(self, robot: Robot, name: str, data: dict | list | None = None,
                       *, writing: bool = False) -> dict:
-        await self.authenticate()
-        response = await self._request(
-            "POST", PORTAL + "iot/devmanager.do", retry=not writing,
+        """Send a validated command without retaining response diagnostics."""
+        if name in (*LEGACY_COMMANDS, "getMapInfo", "getMinorMap", "getMapInfo_V2") and writing:
+            raise ValueError("Legacy map probes are read-only")
+        if name == 'setMajorMap' and not writing:
+            raise ValueError('Map selection requires write validation')
+        try:
+            await self.authenticate()
+        except (CommandUncertain, CannotConnect):
+            # No device write has been attempted; status cannot confirm a login.
+            raise CannotConnect("Authentication transport failed before command") from None
+        response = await self._device_request(writing,
+            "POST", PORTAL + "iot/devmanager.do", retry=not writing and name not in LEGACY_COMMANDS,
             params={"cv": "1.94.76", "t": "a", "av": "1.3.0", "mid": TARGET_CLASS_ID,
                     "did": robot.did, "td": "q", "u": self.user_id},
             json={"cmdName": name, "payloadType": "j", "auth": self._auth(), "td": "q",
@@ -267,6 +311,232 @@ class YeediClient:
                                          "tzm": 480, "ver": "0.0.50"},
                               "body": {"data": data or {}}}})
         return command_body(response, writing=writing)
+
+    async def _device_request(self, writing, *args, **kwargs):
+        try:
+            return await self._request(*args, **kwargs)
+        except (RateLimited, CommandTimeout):
+            raise
+        except CannotConnect:
+            if writing:
+                raise CommandUncertain("Device request transport outcome unknown") from None
+            raise
+
+    async def maps(self, robot: Robot) -> tuple[YeediMap, ...]:
+        try:
+            async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
+                body = await self.command(robot, "getCachedMapInfo")
+        except CommandTimeout:
+            candidate = await self.probe_legacy_maps(robot)
+            if candidate is None:
+                raise CloudError("Legacy discovery returned no valid current map") from None
+            return (candidate,)
+        info = object_value(body.get("data")).get("info")
+        if not isinstance(info, list) or len(info) > 100:
+            raise CloudError("Invalid map metadata")
+        result = {}
+        for item in info:
+            if not isinstance(item, dict):
+                continue
+            mid = identifier(item.get("mid"))
+            if mid is None or mid == "0":
+                continue
+            if mid in result:
+                raise CloudError("Ambiguous map metadata")
+            name = item.get("name")
+            result[mid] = YeediMap(mid, name if isinstance(name, str) else None,
+                                   item.get("using") in (1, "1"))
+        return tuple(result.values())
+
+    async def probe_legacy_maps(self, robot: Robot) -> YeediMap | None:
+        """Read legacy structure and return only the evidenced current map ID.
+
+        Never interpret state or access MajorMap.value. A failed probe yields no map.
+        """
+        for name in LEGACY_COMMANDS:
+            try:
+                async with asyncio.timeout(LEGACY_PROBE_TIMEOUT):
+                    body = await self.command(robot, name)
+                if name == "getMajorMap":
+                    raw_mid = object_value(body.get("data")).get("mid")
+                    mid = identifier(raw_mid) if isinstance(raw_mid, str) else None
+                    if mid is not None and mid != "0":
+                        return YeediMap(mid, None, True)
+            except (InvalidAuth, VerificationRequired, DeviceOffline, RateLimited):
+                break
+            except (CloudError, TimeoutError):
+                continue
+        return None
+
+    async def current_yeedi_map_id(self, robot: Robot) -> str:
+        """Read only the Yeedi current-map identifier, never map image contents."""
+        async with asyncio.timeout(YEEDI_MAP_INFO_TIMEOUT):
+            body = await self.command(robot, "getMapInfo_V2", {"type": "0"})
+        data = body.get("data") if isinstance(body, dict) else None
+        mid = data.get("mid") if isinstance(data, dict) else None
+        if not isinstance(mid, str) or not mid or identifier(mid) != mid or mid == "0":
+            raise CloudError("Yeedi current map identifier unavailable")
+        return mid
+
+    async def confirms_cached_map(self, robot: Robot, map_id: str) -> bool:
+        """Strict direct cached-map evidence only; NEVER substitute legacy discovery."""
+        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == '0':
+            return False
+        async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
+            body = await self.command(robot, 'getCachedMapInfo')
+        info = object_value(body.get('data')).get('info')
+        if not isinstance(info, list) or len(info) > 100:
+            return False
+        active = [item for item in info if isinstance(item, dict)
+                  and type(item.get('using')) in (int, str) and item['using'] in (1, '1')]
+        return (len(active) == 1 and type(active[0].get('mid')) is str
+                and active[0]['mid'] == map_id)
+
+    async def reactivate_map(self, robot: Robot, map_id: str) -> None:
+        """One acknowledged write; caller must hold the coordinator command lock."""
+        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == '0':
+            raise CloudError('Invalid map selection')
+        async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
+            await self.command(robot, 'setMajorMap', {'mid': map_id}, writing=True)
+
+    async def prepare_raw_map(self, robot: Robot, map_id: str) -> None:
+        """Bounded outline refresh before acquisition; discard the response."""
+        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == "0":
+            return
+        try:
+            async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
+                await self.command(robot, "getMapInfo", {"mid": map_id, "type": "ol"})
+        except (CloudError, TimeoutError):
+            pass  # Preparation failure must not block the normal raw-map load.
+
+    async def load_raw_map(self, robot, map_id, previous, status):
+        """Optional atomic build, two workers, bounded budget, no surviving tasks."""
+        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == '0':
+            status['failure_stage'] = 'major_initial'
+            return None
+        loaded = decoded = failures = 0
+        tasks = []
+        stage = 'major_initial'
+        try:
+            async with asyncio.timeout(RAW_MAP_TIMEOUT):
+                body = await self.command(robot, 'getMajorMap')
+                if object_value(body.get('data')).get('mid') != map_id:
+                    raise MapChanged('Current map changed')
+                major = parse_major(body.get('data'), map_id)
+                del body
+                status['major_valid'] = True
+                status['required_piece_count_bucket'] = count_bucket(len(major.required))
+                pieces = [None] * len(major.crcs)
+                compatible = (isinstance(previous, RawMap) and
+                              (previous.major.map_id, previous.major.piece_size, previous.major.cells, previous.major.pixel)
+                              == (major.map_id, major.piece_size, major.cells, major.pixel))
+                if compatible:
+                    for index in major.required:
+                        if previous.major.crcs[index] == major.crcs[index]:
+                            pieces[index] = previous.pieces[index]
+                pending = iter(i for i in major.required if pieces[i] is None)
+                stage = 'piece_download'
+
+                async def worker():
+                    nonlocal loaded, decoded, failures
+                    for index in pending:
+                        response = await self.command(robot, 'getMinorMap', {
+                            'mid': map_id, 'pieceIndex': index, 'type': 'ol'})
+                        loaded += 1
+                        try:
+                            pieces[index] = await asyncio.to_thread(decode_piece, response.get('data'), major, index)
+                            decoded += 1
+                        except MapFormatError:
+                            failures += 1
+                            status['failure_stage'] = 'piece_decode'
+                            raise
+                        except Exception:
+                            status['failure_stage'] = 'unexpected'
+                            raise
+
+                tasks = [asyncio.create_task(worker()) for _ in range(2)]
+                await asyncio.gather(*tasks)
+                stage = 'unexpected'  # Verification transport/parse failure, not a proven change.
+                verify = await self.command(robot, 'getMajorMap')
+                if object_value(verify.get('data')).get('mid') != map_id:
+                    raise MapChanged('Current map changed')
+                if parse_major(verify.get('data'), map_id) != major:
+                    raise MapChanged('Map changed during build')
+                status['generation_verified'] = True
+                if compatible and previous.major == major:
+                    result = previous
+                else:
+                    status['render_attempted'] = True
+                    stage = 'png_generation'
+                    png = await asyncio.to_thread(render_png, major, tuple(pieces))
+                    status['raster_assembled'] = True
+                    result = RawMap(major, tuple(pieces), png)
+                status.update(available=True, complete=True, image_generated=True, failure_stage='none')
+                return result
+        except MapChanged:
+            status['failure_stage'] = 'generation_changed'
+            raise
+        except MapRenderError as err:
+            status.update(failure_stage=err.stage, raster_assembled=err.assembled)
+            return None
+        except (CloudError, TimeoutError, MapFormatError, TypeError, OverflowError):
+            if status['failure_stage'] == 'none':
+                status['failure_stage'] = stage
+            return None
+        except Exception:
+            status['failure_stage'] = 'unexpected'
+            return None
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            if tasks:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            status['loaded_piece_count_bucket'] = count_bucket(loaded)
+            status['decoded_piece_count_bucket'] = count_bucket(decoded)
+            status['decode_failures_bucket'] = count_bucket(failures)
+
+    async def rooms(self, robot: Robot, map_id: str) -> tuple[YeediRoom, ...]:
+        body = await self.command(robot, "getMapSet", {"mid": map_id, "type": "ar"})
+        data = object_value(body.get("data"))
+        if "mid" in data and identifier(data["mid"]) != map_id:
+            raise CloudError("Map response mismatch")
+        subsets = data.get("subsets")
+        if not isinstance(subsets, list) or len(subsets) > 100:
+            raise CloudError("Invalid room list")
+        msid = identifier(data.get("msid"))
+        rooms = {}
+        for item in subsets:
+            if not isinstance(item, dict):
+                continue
+            rid = identifier(item.get("mssid"))
+            if rid is None or rid in rooms:
+                continue
+            detail = item
+            if "value" not in item or not item.get("name"):
+                try:
+                    request = {"mid": map_id, "type": "ar", "mssid": rid}
+                    if msid is not None:
+                        request["msid"] = msid
+                    response = await self.command(robot, "getMapSubSet", request)
+                    candidate = object_value(response.get("data"))
+                    if (identifier(candidate.get("mssid")) == rid
+                            and identifier(candidate.get("mid", map_id)) == map_id):
+                        detail = item | candidate
+                except (CloudError, TimeoutError):
+                    pass
+            name = detail.get("name")
+            rooms[rid] = YeediRoom(
+                rid, name.strip() if isinstance(name, str) and name.strip() else fallback_name(len(rooms)),
+                  identifier(detail.get("subtype")), polygon(detail.get("value"), detail.get("compress")))
+        return tuple(rooms.values())
+
+    async def positions(self, robot: Robot) -> tuple[RobotPosition | None, DockPosition | None]:
+        body = await self.command(robot, "getPos", ["chargePos", "deebotPos"])
+        data = object_value(body.get("data"))
+        dock = data.get("chargePos")
+        dock = dock[0] if isinstance(dock, list) and len(dock) == 1 else None
+        return position(data.get("deebotPos"), RobotPosition), position(dock, DockPosition)
 
     async def snapshot(self, robot: Robot) -> dict:
         results = {}
