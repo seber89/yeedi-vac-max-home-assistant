@@ -293,6 +293,8 @@ class YeediClient:
         """Send a validated command without retaining response diagnostics."""
         if name in (*LEGACY_COMMANDS, "getMapInfo", "getMinorMap") and writing:
             raise ValueError("Legacy map probes are read-only")
+        if name == 'setMajorMap' and not writing:
+            raise ValueError('Map selection requires write validation')
         try:
             await self.authenticate()
         except (CommandUncertain, CannotConnect):
@@ -364,6 +366,27 @@ class YeediClient:
             except (CloudError, TimeoutError):
                 continue
         return None
+
+    async def confirms_cached_map(self, robot: Robot, map_id: str) -> bool:
+        """Strict direct cached-map evidence only; NEVER substitute legacy discovery."""
+        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == '0':
+            return False
+        async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
+            body = await self.command(robot, 'getCachedMapInfo')
+        info = object_value(body.get('data')).get('info')
+        if not isinstance(info, list) or len(info) > 100:
+            return False
+        active = [item for item in info if isinstance(item, dict)
+                  and type(item.get('using')) in (int, str) and item['using'] in (1, '1')]
+        return (len(active) == 1 and type(active[0].get('mid')) is str
+                and active[0]['mid'] == map_id)
+
+    async def reactivate_map(self, robot: Robot, map_id: str) -> None:
+        """One acknowledged write; caller must hold the coordinator command lock."""
+        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == '0':
+            raise CloudError('Invalid map selection')
+        async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
+            await self.command(robot, 'setMajorMap', {'mid': map_id}, writing=True)
 
     async def prepare_raw_map(self, robot: Robot, map_id: str) -> None:
         """Bounded outline refresh before acquisition; discard the response."""

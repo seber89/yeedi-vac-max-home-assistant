@@ -1,7 +1,47 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.5. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.6. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC6 — begrenzter Same-Map-Bootstrap-Test
+
+Protokollfakt, keine Implementierungsübernahme: der bereits gepinnte
+[DeebotUniverse-Snapshot be8cbbd, major_map.py](https://github.com/DeebotUniverse/client.py/blob/be8cbbda9159e8b750efc4727eccf66ae5ff80bf/deebot_client/commands/json/map/major_map.py)
+benennt den Write setMajorMap mit dem Feld mid. Keine Klassen, Tests, Renderer
+oder Implementierung daraus kopiert/portiert. Ob derselbe bereits aktive Kontext
+bei diesem Vac Max die gespeicherten sichtbaren Pieces verfügbar macht, ist nur
+eine zu prüfende Hypothese.
+
+Der direkte RC5-Abruf bleibt zuerst unverändert. Nur bei no_visible_pixels,
+major_valid, generation_verified, raster_assembled, ohne Decodefehler und ohne
+RawMap/gespeicherte Last-Good-Map ist ein Bootstrap-Versuch zulässig.
+Unter derselben Gerätesperre wie Polling/Commands wird getCachedMapInfo direkt
+gelesen: exakt ein using=1/"1"-Eintrag, exakte gültige nicht-"0" String-ID.
+Keine Namen-/Indexauswahl, keine Legacy-Ersatzfreigabe. Unklar/abweichend/Timeout
+bricht ab. Der Write nutzt command(..., writing=True), explizite ACK-Prüfung,
+vorhandenen Command-Abstand und keinerlei Write-Retry oder Status-Erfolgsschätzung.
+Reject, Uncertain, Timeout und RateLimit bleiben isoliert. Kein zweiter Write.
+
+Nach ACK eine Sekunde bounded Synchronisation, dann erneut ausschließlich
+getCachedMapInfo mit denselben Bedingungen. Erst danach prepare_raw_map und
+load_raw_map über den bisherigen vollständigen Pipelinepfad (ohne alte Pieces).
+Nur dessen erfolgreicher verifizierter Build geht in den regulären RC5-Store.
+Ein zweites Nullbild führt lediglich zum normalen Fehler-Backoff.
+
+Bewusst konservatives Budget: maximal eine Bootstrap-Evaluation je Roboter und
+Integration-Setup, verbraucht schon vor der ersten Cached-Map-Prüfung und nicht
+durch spätere Polls/Backoff/Map-Wechsel zurückgesetzt. Expliziter Reload/Neustart
+beginnt eine neue Bootstrap-Gelegenheit. Kein neuer Task, Timer oder Poll.
+Private direkte Raw-Refresh-Aufrufe ohne gehaltene Command-Sperre autorisieren
+keinen Write. Die bestehenden Produktions-Aufrufer halten diese Sperre bereits.
+
+Zusätzliche Diagnose nur map_reactivation_attempted, map_reactivation_confirmed,
+post_reactivation_build_attempted und post_reactivation_result aus fester Allowlist
+(not_needed/success/no_visible_pixels/rejected/uncertain/map_changed/timeout/
+unexpected/rate_limited). attempted bezeichnet den tatsächlichen Write-Versuch;
+eine fehlgeschlagene Freigabe kann deshalb attempted=false, result=timeout liefern.
+Keine privaten Werte, IDs, Koordinaten, Payloads oder Historien werden exportiert.
+MQTT/TLS-Forschung bleibt entfernt; Decoder/Palette/Assembly/PNG unverändert.
 
 ## RC5 — private Last-Good-Map und eng begrenzte Statuspriorität
 

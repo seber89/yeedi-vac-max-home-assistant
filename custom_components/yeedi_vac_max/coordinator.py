@@ -10,7 +10,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .client import (CloudError, InvalidAuth, VerificationRequired, CommandUncertain,
                      DeviceOffline, RateLimited, CommandRejected, READ_RETRY_BUDGET,
-                     MAP_REQUEST_TIMEOUT, MAP_DISCOVERY_TIMEOUT)
+                     MAP_REQUEST_TIMEOUT, MAP_DISCOVERY_TIMEOUT, CommandTimeout)
 from .map_data import YeediMap, YeediRoom, RobotPosition, DockPosition, identifier
 from .raw_map import RawMap, MapChanged, safe_status
 from .map_storage import MapStorage, SavedMap
@@ -40,6 +40,11 @@ class SpatialState:
     raw_status: dict = field(default_factory=safe_status)
     saved_map: SavedMap | None = None
     has_persisted_map: bool = False
+    reactivation_checked: bool = False  # One bootstrap evaluation per robot/setup, never reset by polls.
+    map_reactivation_attempted: bool = False
+    map_reactivation_confirmed: bool = False
+    post_reactivation_build_attempted: bool = False
+    post_reactivation_result: str = 'not_needed'
 
     @property
     def image_map(self):
@@ -235,6 +240,14 @@ class YeediCoordinator(DataUpdateCoordinator):
             await self.client.prepare_raw_map(robot, selected.map_id)
             result = await self.client.load_raw_map(
                 robot, selected.map_id, None if fresh else state.raw_map, status)
+            if (result is None and status.get('failure_stage') == 'no_visible_pixels'
+                    and status.get('major_valid') is True
+                    and status.get('generation_verified') is True
+                    and status.get('raster_assembled') is True
+                    and status.get('decode_failures_bucket') == '0'
+                    and state.raw_map is None and state.saved_map is None
+                    and not state.has_persisted_map and not state.reactivation_checked):
+                result = await self._reactivate_raw_map(robot, selected, status)
         except MapChanged:
             result = None
         except Exception:
@@ -264,6 +277,75 @@ class YeediCoordinator(DataUpdateCoordinator):
             else:
                 state.raw_valid_until = min(state.raw_valid_until, now + MAP_ERROR_BACKOFF)
         self.async_update_listeners()
+
+    async def _reactivate_raw_map(self, robot, selected, status):
+        """Bootstrap only, inside the SAME per-device lock as polling and writes.
+
+        Production callers (_poll_robot / async_refresh_map_data / room validation)
+        already hold this lock. Do not recursively call execute or acquire it again.
+        A private unlocked raw refresh cannot authorize a map write.
+        """
+        state = self.spatial[robot.did]
+        command = self.commands[robot.did]
+        if not command.lock.locked():
+            return None
+        state.reactivation_checked = True  # Consume before reads, errors or cancellation.
+        def context_valid():
+            return (state.metadata_valid and state.active_map == selected
+                    and state.raw_map is None and state.saved_map is None
+                    and not state.has_persisted_map
+                    and isinstance(selected.map_id, str)
+                    and identifier(selected.map_id) == selected.map_id and selected.map_id != '0')
+        try:
+            if not context_valid() or await self.client.confirms_cached_map(robot, selected.map_id) is not True:
+                state.post_reactivation_result = 'map_changed'
+                return None
+            gap = COMMAND_GAP - (time.monotonic() - command.last_end)
+            if gap > 0:
+                await asyncio.sleep(gap)
+            if not context_valid():
+                state.post_reactivation_result = 'map_changed'
+                return None
+            state.map_reactivation_attempted = True
+            state.post_reactivation_result = 'uncertain'
+            # No deduplication/status-based success for map selection. Existing
+            # transport validates the explicit ACK and sends the write once.
+            command.last_key = command.last_confirmation = None
+            try:
+                await self.client.reactivate_map(robot, selected.map_id)
+                state.map_reactivation_confirmed = True
+            finally:
+                command.last_end = time.monotonic()
+            await asyncio.sleep(1)  # Bounded one-shot synchronization, no timer/loop.
+            if not context_valid() or await self.client.confirms_cached_map(robot, selected.map_id) is not True:
+                state.post_reactivation_result = 'map_changed'
+                return None
+            if not context_valid():
+                state.post_reactivation_result = 'map_changed'
+                return None
+            state.post_reactivation_build_attempted = True
+            status.clear()
+            status.update(safe_status())
+            await self.client.prepare_raw_map(robot, selected.map_id)
+            result = await self.client.load_raw_map(robot, selected.map_id, None, status)
+            state.post_reactivation_result = ('success' if isinstance(result, RawMap)
+                and result.major.map_id == selected.map_id and context_valid()
+                else 'no_visible_pixels' if status.get('failure_stage') == 'no_visible_pixels'
+                else 'unexpected')
+            return result
+        except CommandRejected:
+            state.post_reactivation_result = 'rejected'
+        except (CommandTimeout, TimeoutError):
+            state.post_reactivation_result = 'timeout'
+        except CommandUncertain:
+            state.post_reactivation_result = 'uncertain'
+        except MapChanged:
+            state.post_reactivation_result = 'map_changed'
+        except RateLimited:
+            state.post_reactivation_result = 'rate_limited'
+        except Exception:
+            state.post_reactivation_result = 'unexpected'
+        return None
 
     async def async_refresh_map_data(self, robot):
         """Explicit refresh hook; reload creates fresh caches automatically."""

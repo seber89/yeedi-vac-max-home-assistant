@@ -23,9 +23,10 @@ def raw_diagnostics(state):
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return {
-        "integration_version": "0.2.0-rc.5",
+        "integration_version": "0.2.0-rc.6",
         "last_update_success": bool(coordinator.last_update_success),
         "raw_map": [raw_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
+        "map_reactivation": [reactivation_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
         "robots": [
             {
                 "online": bool((coordinator.data or {}).get(robot.did, {}).get("online")),
@@ -50,3 +51,15 @@ async def async_get_config_entry_diagnostics(hass, entry):
 def safe_activity(value):
     return value if type(value) is str and value in {
         'docked', 'returning', 'cleaning', 'paused', 'idle', 'error', 'unknown'} else 'unknown'
+
+
+def reactivation_diagnostics(state):
+    value = state.post_reactivation_result
+    return {
+        'map_reactivation_attempted': state.map_reactivation_attempted is True,
+        'map_reactivation_confirmed': state.map_reactivation_confirmed is True,
+        'post_reactivation_build_attempted': state.post_reactivation_build_attempted is True,
+        'post_reactivation_result': value if type(value) is str and value in {
+            'not_needed', 'success', 'no_visible_pixels', 'rejected', 'uncertain',
+            'map_changed', 'timeout', 'unexpected', 'rate_limited'} else 'unexpected',
+    }

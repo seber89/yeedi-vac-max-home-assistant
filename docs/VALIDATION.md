@@ -1,6 +1,20 @@
 # Prüfprotokoll — 19. September 2026
 
-Stand 0.2.0-rc.5 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-rc.6 auf feature/rooms-position-map; kein Merge nach main.
+
+## RC6 — 26. September 2026
+
+503 Tests: alle 457 RC5-Fälle plus 46 neue synthetische Bootstrapfälle.
+Nur RC1-Versions-/Diagnose-Top-Level-Erwartungen angepasst; RC5-Persistenz,
+Room-, Control- und Overlaytests unverändert. Prüfung: direkter Erfolg ohne
+Write, strikt identische Cached-Map vor/nach Write, mehrdeutige/ungültige IDs,
+keine Legacy-Ersatzfreigabe, ACK/Reject/Timeout/Uncertain/RateLimit,
+Transport ohne Write-Retry, Cancellation ohne Wiederholung, bestehende
+Command-Sperre mit gleichzeitig wartendem Steuerbefehl, einmaliger zweiter
+Build mit Persistenz oder normalem Backoff, vorhandene gute Caches und Privacy.
+Validate: 39 Python / 5 JSON. Compile-/Import-/Manifestprüfung erfolgreich.
+Eine externe HA/aiohttp-DeprecationWarning. Kein RC6-Hardwaretest ausgeführt.
+Bei weiterem getCachedMapInfo-Timeout bleibt der Write bewusst gesperrt.
 
 ## RC5 — 25. September 2026
 
