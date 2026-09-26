@@ -37,6 +37,7 @@ READ_RETRY_DELAY = 1
 READ_RETRY_BUDGET = HTTP_TIMEOUT * READ_ATTEMPTS + READ_RETRY_DELAY * (READ_ATTEMPTS - 1)
 LEGACY_PROBE_TIMEOUT = HTTP_TIMEOUT + 3
 MAP_REQUEST_TIMEOUT = READ_RETRY_BUDGET + 9
+YEEDI_MAP_INFO_TIMEOUT = READ_RETRY_BUDGET + 4  # Optional read, including existing safe retry.
 MAP_DISCOVERY_TIMEOUT = MAP_REQUEST_TIMEOUT + 2 * LEGACY_PROBE_TIMEOUT + 1
 LEGACY_COMMANDS = ("getMapState", "getMajorMap")
 RAW_MAP_TIMEOUT = 75
@@ -291,7 +292,7 @@ class YeediClient:
     async def command(self, robot: Robot, name: str, data: dict | list | None = None,
                       *, writing: bool = False) -> dict:
         """Send a validated command without retaining response diagnostics."""
-        if name in (*LEGACY_COMMANDS, "getMapInfo", "getMinorMap") and writing:
+        if name in (*LEGACY_COMMANDS, "getMapInfo", "getMinorMap", "getMapInfo_V2") and writing:
             raise ValueError("Legacy map probes are read-only")
         if name == 'setMajorMap' and not writing:
             raise ValueError('Map selection requires write validation')
@@ -366,6 +367,16 @@ class YeediClient:
             except (CloudError, TimeoutError):
                 continue
         return None
+
+    async def current_yeedi_map_id(self, robot: Robot) -> str:
+        """Read only the Yeedi current-map identifier, never map image contents."""
+        async with asyncio.timeout(YEEDI_MAP_INFO_TIMEOUT):
+            body = await self.command(robot, "getMapInfo_V2", {"type": "0"})
+        data = body.get("data") if isinstance(body, dict) else None
+        mid = data.get("mid") if isinstance(data, dict) else None
+        if not isinstance(mid, str) or not mid or identifier(mid) != mid or mid == "0":
+            raise CloudError("Yeedi current map identifier unavailable")
+        return mid
 
     async def confirms_cached_map(self, robot: Robot, map_id: str) -> bool:
         """Strict direct cached-map evidence only; NEVER substitute legacy discovery."""

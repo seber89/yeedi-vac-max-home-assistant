@@ -1,6 +1,22 @@
 # Prüfprotokoll — 19. September 2026
 
-Stand 0.2.0-rc.6 auf feature/rooms-position-map; kein Merge nach main.
+Stand 0.2.0-rc.7 auf feature/rooms-position-map; kein Merge nach main.
+
+## RC7 — 26. September 2026
+
+525 Tests bestanden, einschließlich 22 neuer synthetischer RC7-Fälle.
+Die RC6-Bootstrap-Erwartungen wurden gezielt von CachedMapInfo vor/nach Write
+auf einmalige Yeedi-Map-ID-Bestätigung und lokale Kontextprüfung umgestellt;
+keine Tests deaktiviert. Bestehende Control-/Room-/Cache-/Overlaytests unverändert.
+Geprüft: exaktes getMapInfo_V2-Payload ohne mid, strikte Identifierprüfung,
+35s-Read-Budget, isolierter Timeout mit erfolgreichem Coordinator, falsche/fehlende
+ID ohne Write, bestehende Sperre und Command-Gap, einmaliger Write ohne Retry,
+einmaliger Folge-Build mit Persistenz oder Backoff, Kontextwechsel, kein zusätzlicher
+CachedMapInfo-Read und ausschließlich erlaubte Diagnosewerte.
+Validate: 40 Python / 5 JSON. Compile-, Import- und Manifestprüfung erfolgreich.
+Eine externe HA/aiohttp-DeprecationWarning. Kein MQTT, kein TLS-Bypass;
+kein RC7-Hardwareerfolg behauptet. Hardwaretest: HA neu starten, angedockt lassen,
+keine Reinigung oder App-Kartenrefresh, nach circa zwei Minuten Karte/Diagnose prüfen.
 
 ## RC6 — 26. September 2026
 

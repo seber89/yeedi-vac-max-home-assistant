@@ -1,7 +1,41 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.6. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.7. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC7 — modellgerechte Yeedi-Map-ID-Bestätigung
+
+Zielgerät bleibt Yeedi Vac Max / K781 / 04z443. Die externe
+[ioBroker-Modellzuordnung, Pin 9ff88d5](https://github.com/mrbungle64/ioBroker.ecovacs-deebot/blob/9ff88d556f32639dd040aae60ad010b8bd71f35e/lib/deebotModel.js)
+ordnet 04z443 der Familie p5nx9u zu. Der bereits gepinnte
+[Dispatcher f1ae56e](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/managers/commandDispatcher.js)
+nutzt für diese Familie die Yeedi-spezifische Discovery. Ihr Protokollaufruf ist
+[getMapInfo_V2, gleicher Pin](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/commands/map.js)
+mit exakt {"type":"0"}, ohne mid. Verwendet werden ausschließlich diese
+Modell-/Command-/Payload-/Feldfakten. Keine Drittimplementierung, Parser,
+Tests, Fixtures oder Renderer kopiert oder portiert.
+
+Der direkte Abruf bleibt zuerst unverändert. Nur ein vollständig verifiziertes,
+fehlerfrei dekodiertes Nullbild ohne irgendeine Last-Good-Map qualifiziert für
+eine einmalige Prüfung pro Roboter/Setup. Unter der bestehenden Gerätesperre
+liest current_yeedi_map_id den neuen Read mit einem 35s-Budget einschließlich
+vorhandener Read-Retries. Akzeptiert wird ausschließlich body.data.mid auf dem
+bereits normalisierten Response-Pfad: unveränderter gültiger String, nicht leer
+und nicht "0". Keine verschachtelte Suche oder Ersatz-ID.
+
+Nur exakte Gleichheit mit der weiterhin gültigen ausgewählten aktiven Map
+erlaubt den bestehenden setMajorMap-Write, ohne Write-Retry und mit Command-Gap.
+Nach explizitem ACK und einer Sekunde Synchronisation wird nur der lokale
+Kartenkontext erneut geprüft. Dann prepare_raw_map und derselbe vollständige
+Raw-Build. Kein zusätzlicher getCachedMapInfo-Read vor oder nach dem Write.
+Erfolg nutzt unverändert den RC5-Store; erneutes Nullbild nutzt den normalen
+Backoff. Der einmalige Versuch bleibt auch bei Fehler/Cancellation verbraucht.
+
+Diagnose enthält nur drei zusätzliche Yeedi-Read-/Identitätsbooleans und die
+bestehenden Write-/Buildbooleans mit festen Ergebnisnamen. Read-Timeout ist
+yeedi_map_info_timeout; Write-Timeout ist uncertain. Keine IDs oder Payloads.
+Keine neue MQTT-/TLS-Logik. Die Wirkung von Same-Map-Reactivation auf reale
+sichtbare Kartendaten ist weiterhin eine unbestätigte Hardwarehypothese.
 
 ## RC6 — begrenzter Same-Map-Bootstrap-Test
 

@@ -23,7 +23,7 @@ def raw_diagnostics(state):
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return {
-        "integration_version": "0.2.0-rc.6",
+        "integration_version": "0.2.0-rc.7",
         "last_update_success": bool(coordinator.last_update_success),
         "raw_map": [raw_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
         "map_reactivation": [reactivation_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
@@ -56,10 +56,14 @@ def safe_activity(value):
 def reactivation_diagnostics(state):
     value = state.post_reactivation_result
     return {
+        'yeedi_map_info_attempted': state.yeedi_map_info_attempted is True,
+        'yeedi_map_info_valid': state.yeedi_map_info_valid is True,
+        'yeedi_map_identity_match': state.yeedi_map_identity_match is True,
         'map_reactivation_attempted': state.map_reactivation_attempted is True,
         'map_reactivation_confirmed': state.map_reactivation_confirmed is True,
         'post_reactivation_build_attempted': state.post_reactivation_build_attempted is True,
         'post_reactivation_result': value if type(value) is str and value in {
             'not_needed', 'success', 'no_visible_pixels', 'rejected', 'uncertain',
-            'map_changed', 'timeout', 'unexpected', 'rate_limited'} else 'unexpected',
+            'map_changed', 'yeedi_map_info_timeout', 'yeedi_map_info_invalid',
+            'map_identity_mismatch', 'unexpected', 'rate_limited'} else 'unexpected',
     }

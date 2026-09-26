@@ -41,6 +41,9 @@ class SpatialState:
     saved_map: SavedMap | None = None
     has_persisted_map: bool = False
     reactivation_checked: bool = False  # One bootstrap evaluation per robot/setup, never reset by polls.
+    yeedi_map_info_attempted: bool = False
+    yeedi_map_info_valid: bool = False
+    yeedi_map_identity_match: bool = False
     map_reactivation_attempted: bool = False
     map_reactivation_confirmed: bool = False
     post_reactivation_build_attempted: bool = False
@@ -297,8 +300,32 @@ class YeediCoordinator(DataUpdateCoordinator):
                     and isinstance(selected.map_id, str)
                     and identifier(selected.map_id) == selected.map_id and selected.map_id != '0')
         try:
-            if not context_valid() or await self.client.confirms_cached_map(robot, selected.map_id) is not True:
+            if not context_valid():
                 state.post_reactivation_result = 'map_changed'
+                return None
+            state.yeedi_map_info_attempted = True
+            try:
+                current_mid = await self.client.current_yeedi_map_id(robot)
+            except (CommandTimeout, TimeoutError):
+                state.post_reactivation_result = 'yeedi_map_info_timeout'
+                return None
+            except RateLimited:
+                state.post_reactivation_result = 'rate_limited'
+                return None
+            except CloudError:
+                state.post_reactivation_result = 'yeedi_map_info_invalid'
+                return None
+            if (not isinstance(current_mid, str) or not current_mid
+                    or identifier(current_mid) != current_mid or current_mid == '0'):
+                state.post_reactivation_result = 'yeedi_map_info_invalid'
+                return None
+            state.yeedi_map_info_valid = True
+            if not context_valid():
+                state.post_reactivation_result = 'map_changed'
+                return None
+            state.yeedi_map_identity_match = current_mid == selected.map_id
+            if not state.yeedi_map_identity_match:
+                state.post_reactivation_result = 'map_identity_mismatch'
                 return None
             gap = COMMAND_GAP - (time.monotonic() - command.last_end)
             if gap > 0:
@@ -317,9 +344,6 @@ class YeediCoordinator(DataUpdateCoordinator):
             finally:
                 command.last_end = time.monotonic()
             await asyncio.sleep(1)  # Bounded one-shot synchronization, no timer/loop.
-            if not context_valid() or await self.client.confirms_cached_map(robot, selected.map_id) is not True:
-                state.post_reactivation_result = 'map_changed'
-                return None
             if not context_valid():
                 state.post_reactivation_result = 'map_changed'
                 return None
@@ -336,7 +360,7 @@ class YeediCoordinator(DataUpdateCoordinator):
         except CommandRejected:
             state.post_reactivation_result = 'rejected'
         except (CommandTimeout, TimeoutError):
-            state.post_reactivation_result = 'timeout'
+            state.post_reactivation_result = 'uncertain'
         except CommandUncertain:
             state.post_reactivation_result = 'uncertain'
         except MapChanged:

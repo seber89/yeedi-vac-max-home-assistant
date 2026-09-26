@@ -24,7 +24,7 @@ def setup(coordinator):
     state = coordinator.spatial['vac']
     state.active_map = YeediMap(MID, None, True)
     state.metadata_valid = state.rooms_valid = True
-    coordinator.client.confirms_cached_map.return_value = True
+    coordinator.client.current_yeedi_map_id.return_value = MID
     return state
 
 
@@ -46,6 +46,7 @@ async def test_direct_success_never_reactivates(coordinator):
     assert state.raw_map and state.has_persisted_map
     coordinator.client.reactivate_map.assert_not_awaited()
     coordinator.client.confirms_cached_map.assert_not_awaited()
+    coordinator.client.current_yeedi_map_id.assert_not_awaited()
 
 
 @pytest.mark.parametrize('second_success',[False,True])
@@ -59,7 +60,8 @@ async def test_one_bootstrap_second_build_and_persistence(coordinator,second_suc
     coordinator.client.load_raw_map.side_effect = load
     await acquire(coordinator)
     coordinator.client.reactivate_map.assert_awaited_once_with(coordinator.robots[0],MID)
-    assert coordinator.client.confirms_cached_map.await_count == 2
+    coordinator.client.confirms_cached_map.assert_not_awaited()
+    coordinator.client.current_yeedi_map_id.assert_awaited_once_with(coordinator.robots[0])
     assert coordinator.client.prepare_raw_map.await_count == 2
     assert state.map_reactivation_confirmed and state.post_reactivation_build_attempted
     assert state.post_reactivation_result == ('success' if second_success else 'no_visible_pixels')
@@ -74,19 +76,25 @@ async def test_one_bootstrap_second_build_and_persistence(coordinator,second_suc
     assert coordinator.client.reactivate_map.await_count == 1
 
 
-@pytest.mark.parametrize('pre,post',[(False,True),(True,False)])
-async def test_context_confirmation_required_both_sides(coordinator,pre,post):
+@pytest.mark.parametrize('phase',['before','after'])
+async def test_local_context_required_both_sides(coordinator,phase):
     state = setup(coordinator)
-    coordinator.client.confirms_cached_map.side_effect = [pre,post]
+    async def change(*args):
+        state.metadata_valid = False
+        return MID
+    if phase == 'before':
+        coordinator.client.current_yeedi_map_id.side_effect = change
+    else:
+        coordinator.client.reactivate_map.side_effect = change
     coordinator.client.load_raw_map.side_effect = zero
     await acquire(coordinator)
-    assert coordinator.client.reactivate_map.await_count == int(pre)
+    assert coordinator.client.reactivate_map.await_count == int(phase == 'after')
     assert coordinator.client.load_raw_map.await_count == 1
     assert state.post_reactivation_result == 'map_changed'
 
 
-@pytest.mark.parametrize('error,result',[(CommandRejected,'rejected'),(CommandTimeout,'timeout'),
-    (CommandUncertain,'uncertain'),(TimeoutError,'timeout'),(RateLimited,'rate_limited')])
+@pytest.mark.parametrize('error,result',[(CommandRejected,'rejected'),(CommandTimeout,'uncertain'),
+    (CommandUncertain,'uncertain'),(TimeoutError,'uncertain'),(RateLimited,'rate_limited')])
 async def test_write_errors_isolated_no_repeat(coordinator,error,result):
     state = setup(coordinator)
     coordinator.client.load_raw_map.side_effect = zero
@@ -99,14 +107,15 @@ async def test_write_errors_isolated_no_repeat(coordinator,error,result):
     assert state.metadata_valid and state.rooms_valid
 
 
-async def test_cached_info_timeout_never_uses_legacy_authority(coordinator):
+async def test_yeedi_info_timeout_never_uses_legacy_authority(coordinator):
     state = setup(coordinator)
     coordinator.client.load_raw_map.side_effect = zero
-    coordinator.client.confirms_cached_map.side_effect = CommandTimeout('PRIVATE')
+    coordinator.client.current_yeedi_map_id.side_effect = CommandTimeout('PRIVATE')
     await acquire(coordinator)
     await acquire(coordinator)
-    assert state.post_reactivation_result == 'timeout'
-    coordinator.client.confirms_cached_map.assert_awaited_once()
+    assert state.post_reactivation_result == 'yeedi_map_info_timeout'
+    coordinator.client.current_yeedi_map_id.assert_awaited_once()
+    coordinator.client.confirms_cached_map.assert_not_awaited()
     coordinator.client.reactivate_map.assert_not_awaited()
     coordinator.client.maps.assert_not_awaited()
 
@@ -219,8 +228,8 @@ async def test_local_context_changes_during_permission_read_no_write(coordinator
     coordinator.client.load_raw_map.side_effect = zero
     async def confirm(*args):
         state.active_map = YeediMap('OTHER',None,True)
-        return True
-    coordinator.client.confirms_cached_map.side_effect = confirm
+        return MID
+    coordinator.client.current_yeedi_map_id.side_effect = confirm
     await acquire(coordinator)
     coordinator.client.reactivate_map.assert_not_awaited()
     assert state.post_reactivation_result == 'map_changed'
@@ -253,6 +262,8 @@ async def test_no_unlocked_private_write_and_private_diagnostics(coordinator,cap
     state.post_reactivation_result = 'PRIVATE_MAP_TOKEN_COORDINATES'
     output = await async_get_config_entry_diagnostics(None,SimpleNamespace(runtime_data=coordinator))
     probe = output['map_reactivation'][0]
-    assert probe == {'map_reactivation_attempted':False,'map_reactivation_confirmed':False,
+    assert probe == {'yeedi_map_info_attempted':False,'yeedi_map_info_valid':False,
+                     'yeedi_map_identity_match':False,
+                     'map_reactivation_attempted':False,'map_reactivation_confirmed':False,
                      'post_reactivation_build_attempted':False,'post_reactivation_result':'unexpected'}
     assert 'PRIVATE' not in json.dumps(output)+caplog.text
