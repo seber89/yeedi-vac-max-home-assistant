@@ -1,4 +1,5 @@
 """Compact allowlisted support diagnostics; no private cloud or map contents."""
+from .clean_log_map import safe_probe
 
 _BUCKETS = frozenset(("0", "1", "2-8", "9-32", "33-64", ">64"))
 _FAILURES = frozenset(("none", "major_initial", "piece_download", "piece_decode",
@@ -23,10 +24,11 @@ def raw_diagnostics(state):
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return {
-        "integration_version": "0.2.0-rc.7",
+        "integration_version": "0.2.0-rc.8",
         "last_update_success": bool(coordinator.last_update_success),
         "raw_map": [raw_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
         "map_reactivation": [reactivation_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
+        "clean_log_map": [clean_log_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
         "robots": [
             {
                 "online": bool((coordinator.data or {}).get(robot.did, {}).get("online")),
@@ -51,6 +53,12 @@ async def async_get_config_entry_diagnostics(hass, entry):
 def safe_activity(value):
     return value if type(value) is str and value in {
         'docked', 'returning', 'cleaning', 'paused', 'idle', 'error', 'unknown'} else 'unknown'
+
+
+def clean_log_diagnostics(state):
+    result = safe_probe(state.clean_log_probe)
+    result['clean_log_fallback_active'] = state.image_map is None and state.historical_image is not None
+    return result
 
 
 def reactivation_diagnostics(state):

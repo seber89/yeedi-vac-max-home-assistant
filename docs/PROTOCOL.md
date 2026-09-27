@@ -767,6 +767,59 @@ Bei Map-Fehler metadata_valid=false. Fehler-Backoff weiterhin 180s, erfolgreiche
 Cache 3600s. Bestehende Queue/no-op-/Write-Validierung und Positionen unverändert.
 Alpha-6-Room-Struktur und Raumreinigung sind noch nicht hardwarevalidiert.
 
+## RC.8: historical HTTPS clean-log image (research gate)
+
+This independently implemented fallback uses only protocol/model facts:
+
+- [ioBroker model table, pinned 9ff88d5](https://github.com/mrbungle64/ioBroker.ecovacs-deebot/blob/9ff88d556f32639dd040aae60ad010b8bd71f35e/lib/deebotModel.js):
+  target `04z443` is Yeedi Vac Max, linked to `p5nx9u`; that family's
+  `cleaninglog.lastCleaningMap` capability is true.
+- [openHAB API, pinned 6a2a023](https://github.com/openhab/openhab-addons/tree/6a2a023e8a5c2d32ae185a5de48c7cc2a02983c5/bundles/org.openhab.binding.ecovacs/src/main/java/org/openhab/binding/ecovacs/internal/api/impl):
+  `EcovacsApiUrlFactory.java` identifies `/api/lg/log.do`;
+  `PortalCleanLogsRequest.java` identifies `auth`, `td=GetCleanLogs`, `did`,
+  `resource`. `PortalCleanLogsResponse.java` identifies `ret=ok`, `logs`;
+  `PortalCleanLogRecord.java` identifies integer `ts` and `imageUrl`.
+  `EcovacsIotMqDevice.java` and `EcovacsApiImpl.java` distinguish unsigned
+  legacy image GET from the signed newer clean-results API. RC8 uses only
+  the former; no app signing headers are added to the image request.
+- [DeebotUniverse URL-schema reference, pinned be8cbbd](https://github.com/DeebotUniverse/client.py/blob/be8cbbda9159e8b750efc4727eccf66ae5ff80bf/tests/commands/json/test_clean_log.py):
+  only the `https://portal-eu.ecouser.net/api/lg/image/` URL schema was used.
+  No fixture values, images, parsers or tests were copied.
+
+Credential-free TLS handshake to portal-eu.ecouser.net:443 on 2026-09-27
+succeeded with Python's default trust context, CERT_REQUIRED and hostname
+checking enabled (TLS 1.2). This is distinct from the unverified MQTT broker
+documented in RESEARCH_SAFE_MAP_EVENTS.md. No MQTT or trust override is used.
+Actual authenticated clean-log/image availability for this robot remains a
+hardware test, not a claim established by the source research.
+
+Order: existing raw build first; only verified no_visible_pixels without any
+good RawMap/SavedMap/persisted cache permits the optional legacy portal read.
+The existing authenticated session is reused. At most 100 records are accepted;
+newest positive integer ts with a nonempty imageUrl wins (first wins ties).
+No inferred timestamps, nested fallback fields or list-order assumption.
+
+The selected URL must have the exact EU authority (optional :443), HTTPS,
+the image path prefix, no userinfo, fragment, query or escaped/traversal path.
+No redirects or automatic CDN expansion. Image GET has a 15-second limit,
+5 MiB streamed limit; PNG framing, CRCs, IHDR, <=4096x4096 dimensions and IEND
+are checked without decompressing cloud pixels. The portal read uses existing
+read retries within 35 seconds; the entire optional path is bounded to 55 seconds.
+Failures are isolated, with at least 180 seconds backoff. Successful fallback
+is retained in RAM without repeated downloads during this setup/map context.
+
+The historical PNG is not RawMap geometry. It is below RawMap/SavedMap priority,
+has no current-position projection, is never written to the RawMap Store, and
+is discarded after a confirmed different active map. Map identity/context is
+rechecked after each await before accepting bytes. This local binding does NOT
+prove the cleaning record depicts the currently active floor. Hardware review
+must establish usefulness before any future persistence/overlay feature.
+
+RC7's automatic reactivation call is removed from normal acquisition. Its
+private helper remains dormant and unit-tested; RC8 does not select a map.
+Only fixed boolean/error categories are exported. URLs, timestamps, IDs,
+image bytes and dimensions are never included in diagnostics or logs.
+
 ## Warum ein kleiner eingebauter Client?
 
 Der reguläre Python-Client bietet in der geprüften Version keinen Yeedi-Login. Der S20-Fork ergänzt ihn, benötigt aber Python/Rust-Paketbau und verwendet denselben Paketnamen wie die HA-Ecovacs-Abhängigkeit. Das `04z443`-Profil fehlt dort. Für die kleine Auswahl an HTTPS-Befehlen wird deshalb ein eigener asynchroner Client ohne zusätzliche Laufzeitabhängigkeit verwendet. Home Assistants vorhandenes aiohttp übernimmt HTTP. Der gesamte MQTT-, Karten- und Fork-Paketbau entfällt für diese erste Polling-Implementierung.

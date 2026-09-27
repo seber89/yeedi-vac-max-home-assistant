@@ -14,6 +14,7 @@ from .client import (CloudError, InvalidAuth, VerificationRequired, CommandUncer
 from .map_data import YeediMap, YeediRoom, RobotPosition, DockPosition, identifier
 from .raw_map import RawMap, MapChanged, safe_status
 from .map_storage import MapStorage, SavedMap
+from .clean_log_map import HistoricalMap, CleanLogError, safe_probe
 
 _LOGGER = logging.getLogger(__name__)
 MAP_INTERVAL = 3600
@@ -40,6 +41,9 @@ class SpatialState:
     raw_status: dict = field(default_factory=safe_status)
     saved_map: SavedMap | None = None
     has_persisted_map: bool = False
+    clean_log_map: HistoricalMap | None = None
+    clean_log_probe: dict = field(default_factory=safe_probe)
+    next_clean_log_attempt: float = 0
     reactivation_checked: bool = False  # One bootstrap evaluation per robot/setup, never reset by polls.
     yeedi_map_info_attempted: bool = False
     yeedi_map_info_valid: bool = False
@@ -59,6 +63,12 @@ class SpatialState:
         if self.metadata_valid and self.active_map and self.active_map.map_id != mid:
             return None
         return candidate
+
+    @property
+    def historical_image(self):
+        candidate = self.clean_log_map
+        return candidate if (candidate is not None and self.active_map is not None
+                             and candidate.map_id == self.active_map.map_id) else None
 
     @property
     def using_persisted_fallback(self):
@@ -101,6 +111,10 @@ class YeediCoordinator(DataUpdateCoordinator):
         """Only a positively identified different map invalidates a last-good image."""
         if selected is None or identifier(selected.map_id) != selected.map_id or selected.map_id == '0':
             return
+        if state.clean_log_map and state.clean_log_map.map_id != selected.map_id:
+            state.clean_log_map = None
+            state.clean_log_probe['clean_log_fallback_active'] = False
+            state.next_clean_log_attempt = 0
         previous_ids = {item for item in (
             state.raw_map.major.map_id if state.raw_map else None,
             state.saved_map.map_id if state.saved_map else None) if item is not None}
@@ -249,8 +263,9 @@ class YeediCoordinator(DataUpdateCoordinator):
                     and status.get('raster_assembled') is True
                     and status.get('decode_failures_bucket') == '0'
                     and state.raw_map is None and state.saved_map is None
-                    and not state.has_persisted_map and not state.reactivation_checked):
-                result = await self._reactivate_raw_map(robot, selected, status)
+                    and not state.has_persisted_map):
+                # RC.8 is read-only. Retained RC.7 write helper has no automatic caller.
+                await self._clean_log_fallback(robot, selected)
         except MapChanged:
             result = None
         except Exception:
@@ -280,6 +295,39 @@ class YeediCoordinator(DataUpdateCoordinator):
             else:
                 state.raw_valid_until = min(state.raw_valid_until, now + MAP_ERROR_BACKOFF)
         self.async_update_listeners()
+
+    async def _clean_log_fallback(self, robot, selected):
+        state = self.spatial[robot.did]
+        if state.historical_image is not None or time.monotonic() < state.next_clean_log_attempt:
+            return
+        def context_valid():
+            return (state.metadata_valid and state.active_map is selected
+                    and identifier(selected.map_id) == selected.map_id and selected.map_id != '0'
+                    and state.raw_map is None and state.saved_map is None and not state.has_persisted_map)
+        if not context_valid():
+            return
+        probe = state.clean_log_probe = safe_probe()
+        probe['clean_log_map_attempted'] = True
+        state.next_clean_log_attempt = time.monotonic() + MAP_ERROR_BACKOFF
+        try:
+            async with asyncio.timeout(55):
+                url = await self.client.clean_logs(robot, probe)
+                if not context_valid():
+                    raise CleanLogError('map_changed')
+                png = await self.client.clean_log_image(url, probe)
+                if not context_valid():
+                    raise CleanLogError('map_changed')
+                state.clean_log_map = HistoricalMap(selected.map_id, png)
+                probe['clean_log_fallback_active'] = True
+        except CleanLogError as error:
+            probe['error'] = error.category
+        except TimeoutError:
+            probe['error'] = 'download_timeout' if probe['clean_log_image_download_attempted'] else 'portal_timeout'
+        except Exception:
+            probe['error'] = 'unexpected'
+        finally:
+            # Even a slow failed read earns a full backoff, not another immediate attempt.
+            state.next_clean_log_attempt = time.monotonic() + MAP_ERROR_BACKOFF
 
     async def _reactivate_raw_map(self, robot, selected, status):
         """Bootstrap only, inside the SAME per-device lock as polling and writes.

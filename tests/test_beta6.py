@@ -250,7 +250,8 @@ async def test_raw_image_without_rooms_positions_and_privacy(coordinator,caplog)
     coordinator.client.assert_not_awaited()
     output = await async_get_config_entry_diagnostics(None,SimpleNamespace(runtime_data=coordinator))
     text = json.dumps(output)+caplog.text
-    for secret in ('PRIVATE','pieceIndex','crcs','png','base64','1295764014'):
+    assert all(type(p['clean_log_png_valid']) is bool for p in output['clean_log_map'])
+    for secret in ('PRIVATE','pieceIndex','crcs','"png":','base64','1295764014'):
         assert secret not in text
     assert output['raw_map'][0]['complete'] and not output['robots'][0]['has_room_polygons']
     state.active_map = YeediMap('NEW',None,True)

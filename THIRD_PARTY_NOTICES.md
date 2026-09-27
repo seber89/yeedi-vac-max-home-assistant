@@ -22,6 +22,14 @@ synthetic tests are independently written. See docs/PROTOCOL.md for facts and
 limitations. No third-party decompressor or map renderer is shipped.
 aiohttp is supplied by Home Assistant; no new runtime dependencies are added.
 
+RC8 additionally uses only model/endpoint/field/transport facts from
+ioBroker.ecovacs-deebot revision 9ff88d556f32639dd040aae60ad010b8bd71f35e
+and openhab/openhab-addons revision 6a2a023e8a5c2d32ae185a5de48c7cc2a02983c5
+(EPL-2.0). The pinned DeebotUniverse clean-log reference supplies only the EU
+HTTPS image path schema. No source, parser, fixture, test or image is copied.
+Our bounded URL/PNG validation and historical-image fallback are original MIT
+code. No new runtime dependency. Detailed facts and links: docs/PROTOCOL.md.
+
 Beta 5 additionally checks the same pinned references for MQTT connection/topic
 facts and the MajorMap CRC-list / empty-piece sentinel / MinorMap request fields.
 No algorithms, decoders, renderers, classes, fixtures or tests are ported.

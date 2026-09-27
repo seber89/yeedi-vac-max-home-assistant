@@ -109,5 +109,5 @@ async def test_export_preserves_latest_failure_during_cache_grace(coordinator,ca
     assert report['available'] and report['complete']  # Previous image, not new render.
     assert report['failure_stage'] == 'no_visible_pixels' and not report['image_generated']
     text = json.dumps(exported)+caplog.text
-    for secret in (MID,'PRIVATE','1295764014','pieceIndex','crcs','png','pixel_values','histogram'):
+    for secret in (MID,'PRIVATE','1295764014','pieceIndex','crcs','"png":','pixel_values','histogram'):
         assert secret not in text

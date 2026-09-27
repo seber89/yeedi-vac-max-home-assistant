@@ -39,6 +39,14 @@ async def acquire(coordinator):
         await coordinator._raw_refresh(coordinator.robots[0])
 
 
+async def legacy_unit(coordinator):
+    """Explicit unit coverage for dormant RC.7 helper, NOT normal RC.8 acquisition."""
+    state = coordinator.spatial['vac']
+    async with coordinator.commands['vac'].lock:
+        if not state.reactivation_checked:
+            return await coordinator._reactivate_raw_map(coordinator.robots[0], state.active_map, {})
+
+
 async def test_direct_success_never_reactivates(coordinator):
     state = setup(coordinator)
     coordinator.client.load_raw_map.return_value = raw_fixture()
@@ -50,29 +58,26 @@ async def test_direct_success_never_reactivates(coordinator):
 
 
 @pytest.mark.parametrize('second_success',[False,True])
-async def test_one_bootstrap_second_build_and_persistence(coordinator,second_success):
+async def test_dormant_bootstrap_returns_build_without_persisting(coordinator,second_success):
     state = setup(coordinator)
     calls = 0
     async def load(*args):
         nonlocal calls
         calls += 1
-        return raw_fixture() if calls == 2 and second_success else zero(*args)
+        return raw_fixture() if second_success else zero(*args)
     coordinator.client.load_raw_map.side_effect = load
-    await acquire(coordinator)
+    result = await legacy_unit(coordinator)
     coordinator.client.reactivate_map.assert_awaited_once_with(coordinator.robots[0],MID)
     coordinator.client.confirms_cached_map.assert_not_awaited()
     coordinator.client.current_yeedi_map_id.assert_awaited_once_with(coordinator.robots[0])
-    assert coordinator.client.prepare_raw_map.await_count == 2
+    assert coordinator.client.prepare_raw_map.await_count == 1
     assert state.map_reactivation_confirmed and state.post_reactivation_build_attempted
     assert state.post_reactivation_result == ('success' if second_success else 'no_visible_pixels')
-    assert state.has_persisted_map is second_success
-    if second_success:
-        assert (await coordinator.map_storage.store.async_load())['vac']
-    else:
-        assert state.raw_map is None and state.next_raw_refresh > time.monotonic()+170
+    assert (result is not None) is second_success
+    assert not state.has_persisted_map  # Commit/storage belongs to normal acquisition.
     # Even later failed refreshes cannot automatically repeat this bootstrap write.
     for _ in range(2):
-        await acquire(coordinator)
+        await legacy_unit(coordinator)
     assert coordinator.client.reactivate_map.await_count == 1
 
 
@@ -87,9 +92,9 @@ async def test_local_context_required_both_sides(coordinator,phase):
     else:
         coordinator.client.reactivate_map.side_effect = change
     coordinator.client.load_raw_map.side_effect = zero
-    await acquire(coordinator)
+    await legacy_unit(coordinator)
     assert coordinator.client.reactivate_map.await_count == int(phase == 'after')
-    assert coordinator.client.load_raw_map.await_count == 1
+    assert coordinator.client.load_raw_map.await_count == 0
     assert state.post_reactivation_result == 'map_changed'
 
 
@@ -99,8 +104,8 @@ async def test_write_errors_isolated_no_repeat(coordinator,error,result):
     state = setup(coordinator)
     coordinator.client.load_raw_map.side_effect = zero
     coordinator.client.reactivate_map.side_effect = error('PRIVATE')
-    await acquire(coordinator)
-    await acquire(coordinator)
+    await legacy_unit(coordinator)
+    await legacy_unit(coordinator)
     coordinator.client.reactivate_map.assert_awaited_once()
     assert state.post_reactivation_result == result
     assert not state.post_reactivation_build_attempted
@@ -111,8 +116,8 @@ async def test_yeedi_info_timeout_never_uses_legacy_authority(coordinator):
     state = setup(coordinator)
     coordinator.client.load_raw_map.side_effect = zero
     coordinator.client.current_yeedi_map_id.side_effect = CommandTimeout('PRIVATE')
-    await acquire(coordinator)
-    await acquire(coordinator)
+    await legacy_unit(coordinator)
+    await legacy_unit(coordinator)
     assert state.post_reactivation_result == 'yeedi_map_info_timeout'
     coordinator.client.current_yeedi_map_id.assert_awaited_once()
     coordinator.client.confirms_cached_map.assert_not_awaited()
@@ -216,10 +221,10 @@ async def test_cancellation_consumes_bootstrap_permission(coordinator):
     coordinator.client.load_raw_map.side_effect = zero
     coordinator.client.reactivate_map.side_effect = asyncio.CancelledError()
     with pytest.raises(asyncio.CancelledError):
-        await acquire(coordinator)
+        await legacy_unit(coordinator)
     assert state.reactivation_checked and state.map_reactivation_attempted
     coordinator.client.reactivate_map.side_effect = None
-    await acquire(coordinator)
+    await legacy_unit(coordinator)
     coordinator.client.reactivate_map.assert_awaited_once()
 
 
@@ -230,7 +235,7 @@ async def test_local_context_changes_during_permission_read_no_write(coordinator
         state.active_map = YeediMap('OTHER',None,True)
         return MID
     coordinator.client.current_yeedi_map_id.side_effect = confirm
-    await acquire(coordinator)
+    await legacy_unit(coordinator)
     coordinator.client.reactivate_map.assert_not_awaited()
     assert state.post_reactivation_result == 'map_changed'
 
@@ -243,7 +248,7 @@ async def test_same_existing_lock_serializes_with_vacuum_write(coordinator):
         entered.set()
         await release.wait()
     coordinator.client.reactivate_map.side_effect = write
-    task = asyncio.create_task(acquire(coordinator))
+    task = asyncio.create_task(legacy_unit(coordinator))
     await entered.wait()
     control = asyncio.create_task(coordinator.execute(coordinator.robots[0],'charge',{'act':'go'}))
     await asyncio.sleep(0)

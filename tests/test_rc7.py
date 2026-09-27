@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from tests.test_coordinator import coordinator
-from tests.test_rc6 import setup, zero, acquire, ROBOT, MID
+from tests.test_rc6 import setup, zero, acquire, legacy_unit, ROBOT, MID
 from tests.test_rc4 import raw_fixture
 from custom_components.yeedi_vac_max import client as client_module
 from custom_components.yeedi_vac_max.client import YeediClient, CloudError
@@ -58,8 +58,8 @@ async def test_no_write_without_exact_valid_identity(coordinator,mid,result):
     state = setup(coordinator)
     coordinator.client.current_yeedi_map_id.return_value = mid
     coordinator.client.load_raw_map.side_effect = zero
-    await acquire(coordinator)
-    await acquire(coordinator)
+    await legacy_unit(coordinator)
+    await legacy_unit(coordinator)
     assert state.post_reactivation_result == result
     coordinator.client.current_yeedi_map_id.assert_awaited_once()
     coordinator.client.reactivate_map.assert_not_awaited()
@@ -72,6 +72,7 @@ async def test_optional_read_timeout_preserves_coordinator_success(coordinator,c
     coordinator.client.rooms.return_value = ()
     coordinator.client.current_yeedi_map_id.side_effect = TimeoutError('PRIVATE_TOKEN')
     coordinator.client.load_raw_map.side_effect = zero
+    await legacy_unit(coordinator)
     await coordinator.async_refresh()
     assert coordinator.last_update_success
     assert state.metadata_valid and state.rooms_valid
@@ -85,7 +86,7 @@ async def test_read_cloud_error_is_invalid_not_write_failure(coordinator):
     state = setup(coordinator)
     coordinator.client.load_raw_map.side_effect = zero
     coordinator.client.current_yeedi_map_id.side_effect = CloudError('PRIVATE')
-    await acquire(coordinator)
+    await legacy_unit(coordinator)
     assert state.yeedi_map_info_attempted and not state.yeedi_map_info_valid
     assert state.post_reactivation_result == 'yeedi_map_info_invalid'
     coordinator.client.reactivate_map.assert_not_awaited()
@@ -116,10 +117,10 @@ async def test_exact_sequence_gap_sync_and_no_cached_map_reads(coordinator,monke
     coordinator.client.load_raw_map.side_effect = load
     coordinator.client.current_yeedi_map_id.side_effect = identity
     coordinator.client.reactivate_map.side_effect = write
-    await acquire(coordinator)
-    assert events == ['prepare','build','identity',('sleep',1.5),'write',
+    result = await legacy_unit(coordinator)
+    assert events == ['identity',('sleep',1.5),'write',
                       ('sleep',1),'prepare','build']
-    assert state.has_persisted_map and state.post_reactivation_result == 'success'
+    assert result is not None and state.post_reactivation_result == 'success'
     coordinator.client.confirms_cached_map.assert_not_awaited()
     coordinator.client.maps.assert_not_awaited()
 

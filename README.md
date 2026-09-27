@@ -1,19 +1,28 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.7** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.8** — Release Candidate für 0.2.0, noch keine Stable-Version.
 
-RC7 testet einen eng begrenzten Bootstrap-Fallback: nur ohne brauchbare RawMap
-oder gespeichertes Last-Good-PNG und nach einem technisch verifizierten reinen
-Nullpixel-Build. Der Yeedi-spezifische Read getMapInfo_V2 mit ausschließlich
-type="0" muss genau dieselbe gültige aktive Map bestätigen, bevor einmalig
-setMajorMap(mid) als bestätigungspflichtiger Write gesendet werden darf.
-Nach einer Sekunde und unverändertem lokalen Kartenkontext läuft der vorhandene
-Raw-Aufbau einmal erneut. Keine zusätzlichen getCachedMapInfo-Abfragen in diesem
-Sonderweg. Bei ungültiger/abweichender ID oder Read-Timeout erfolgt kein Write.
-Je Roboter/Integration-Setup höchstens eine Bootstrap-Prüfung, keine Poll-Schleife
-und kein Write-Retry. Bestehende gute Karten lösen keinen Reactivation-Versuch aus.
-Die Same-Map-Wirkung auf 04z443 ist eine Hardwarehypothese, nicht bestätigt.
-Steuerung, Raumreinigung, Polling, Decoder, Cache und Marker bleiben unverändert.
+RC8 testet ausschließlich einen historischen HTTPS-Bildfallback. Wenn der normale
+RawMap-Aufbau vollständig verifiziert nur Nullpixel liefert und keine gute RawMap
+oder gespeicherte Last-Good-Karte existiert, wird über GetCleanLogs das neueste
+brauchbare Reinigungsbild gesucht. Nur HTTPS auf portal-eu.ecouser.net unter
+/api/lg/image/ ist erlaubt: keine Redirects, keine anderen Hosts, normale
+TLS-Verifikation. Download und PNG werden begrenzt und strukturell validiert.
+Fehlversuche haben mindestens drei Minuten Backoff; ein vorhandenes Fallback
+wird nicht bei jedem Poll neu geladen. Kein automatisches setMajorMap mehr.
+
+Das Bild ist **keine bestätigte Live-Karte**: Es kann eine frühere Raumaufteilung
+oder Etage zeigen. Deshalb ausschließlich RAM, keine Last-Good-Persistenz und
+keine Roboter-/Dockmarker darauf. Bei erkanntem Kartenwechsel wird es verworfen.
+Priorität: echte RawMap, gespeicherte RawMap, historisches PNG, Raum-SVG.
+Steuerung, Räume, Polling, Raw-Decoder/-Renderer und Raw-Overlay bleiben unverändert.
+MQTT bleibt entfernt: Ein sicherer Vertrauensanker ist derzeit nicht belegt
+(siehe docs/RESEARCH_SAFE_MAP_EVENTS.md). Keine TLS-Ausnahme wird eingeführt.
+Der HTTPS-Fallback ist noch nicht auf dem echten Yeedi hardwarebestätigt.
+
+Hardwaretest: RC8 installieren, HA vollständig neu starten, Roboter angedockt
+lassen, keine Reinigung und keinen Yeedi-App-Refresh auslösen. Nach etwa zwei
+Minuten Image-Entity prüfen und Diagnose herunterladen.
 
 RC5 ergänzt einen privaten lokalen Last-Good-Map-Cache über Home Assistants
 Storage. Gespeichert werden nur das fertig gerenderte Basis-PNG und die
@@ -94,7 +103,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.7** herunterladen (nicht main).
+   **0.2.0-rc.8** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.

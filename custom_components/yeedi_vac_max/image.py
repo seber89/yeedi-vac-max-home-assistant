@@ -35,6 +35,8 @@ class YeediMapImage(YeediEntity, ImageEntity):
                     state.robot_position, state.dock_position)
         if state.image_map is not None:
             return ('saved', id(state.saved_map))
+        if state.historical_image is not None:
+            return ('historical', id(state.clean_log_map))
         valid = (super().available and state.active_map is not None
                  and state.metadata_valid and state.rooms_valid
                  and time.monotonic() < state.next_map_refresh)
@@ -51,6 +53,10 @@ class YeediMapImage(YeediEntity, ImageEntity):
             if key is not None and key[0] == 'saved':
                 self._raw_overlay = None
                 self._svg = state.saved_map.png
+                self._attr_content_type = 'image/png'
+            elif key is not None and key[0] == 'historical':
+                self._raw_overlay = None
+                self._svg = state.clean_log_map.png
                 self._attr_content_type = 'image/png'
             elif raw:
                 try:

@@ -17,6 +17,8 @@ from uuid import uuid4
 
 import aiohttp
 
+from .clean_log_map import CleanLogError, latest_image_url, download_png
+
 from .const import TARGET_CLASS_ID
 from .raw_map import RawMap, MapFormatError, MapChanged, parse_major, decode_piece, render_png, count_bucket
 from .raw_map import MapRenderError
@@ -269,6 +271,25 @@ class YeediClient:
         return {
             "with": "users", "userid": self.user_id, "realm": "ecouser.net",
             "token": self.token, "resource": self.device_id}
+
+    async def clean_logs(self, robot: Robot, probe: dict) -> str:
+        """Legacy portal read; return only the selected private image URL in RAM."""
+        try:
+            async with asyncio.timeout(READ_RETRY_BUDGET + 4):
+                await self.authenticate()
+                response = await self._request('POST', PORTAL + 'lg/log.do', retry=True,
+                    json={'auth': self._auth(), 'td': 'GetCleanLogs',
+                          'did': robot.did, 'resource': robot.resource})
+                return latest_image_url(response, probe)
+        except (CommandTimeout, TimeoutError):
+            raise CleanLogError('portal_timeout') from None
+        except CommandUncertain:
+            raise CleanLogError('invalid_response') from None
+        except CloudError:
+            raise CleanLogError('portal_rejected') from None
+
+    async def clean_log_image(self, url: str, probe: dict) -> bytes:
+        return await download_png(self.session, url, probe)
 
     async def devices(self) -> list[Robot]:
         await self.authenticate()
