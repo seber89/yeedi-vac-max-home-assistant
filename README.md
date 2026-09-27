@@ -1,6 +1,15 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.8** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.9** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC9 korrigiert ausschließlich das belegte Yeedi-950-GetCleanLogs-Requestprofil:
+Query `cv=1.94.76&t=a&av=1.3.0`, zusätzlich `country="DE"` im JSON.
+RC8 erreichte auf Hardware den Portalpfad, erhielt aber `ret=ok`, `logs=[]`.
+Download, TLS-Prüfung, PNG-/URL-Sicherheit, RAM-only und Backoff bleiben gleich.
+Erneut angedockt testen, ohne Reinigung oder Yeedi-App-Refresh. Liefert das exakt
+dokumentierte Profil wieder `ret=ok` und `logs=[]`, gilt der Legacy-CleanLog-Pfad
+für dieses Gerät praktisch als negativ: keine weiteren RCs mit kleinen
+GetCleanLogs-Variationen. RC9-Hardwarefunktion ist noch nicht bestätigt.
 
 RC8 testet ausschließlich einen historischen HTTPS-Bildfallback. Wenn der normale
 RawMap-Aufbau vollständig verifiziert nur Nullpixel liefert und keine gute RawMap
@@ -103,7 +112,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.8** herunterladen (nicht main).
+   **0.2.0-rc.9** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.

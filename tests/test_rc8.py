@@ -106,8 +106,8 @@ async def test_exact_client_request_reuses_auth():
     client.authenticate = AsyncMock()
     client._request = AsyncMock(return_value={'ret':'ok','logs':[{'ts':42,'imageUrl':URL}]})
     assert await client.clean_logs(ROBOT,safe_probe()) == URL
-    client._request.assert_awaited_once_with('POST','https://portal-eu.ecouser.net/api/lg/log.do',
-        retry=True,json={'auth':client._auth(),'td':'GetCleanLogs','did':ROBOT.did,'resource':ROBOT.resource})
+    client._request.assert_awaited_once_with('POST','https://portal-eu.ecouser.net/api/lg/log.do?cv=1.94.76&t=a&av=1.3.0',
+        retry=True,json={'auth':client._auth(),'td':'GetCleanLogs','did':ROBOT.did,'country':'DE','resource':ROBOT.resource})
 
 
 @pytest.mark.parametrize('error,result', [(CommandTimeout,'portal_timeout'),(TimeoutError,'portal_timeout'),

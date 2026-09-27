@@ -767,6 +767,26 @@ Bei Map-Fehler metadata_valid=false. Fehler-Backoff weiterhin 180s, erfolgreiche
 Cache 3600s. Bestehende Queue/no-op-/Write-Validierung und Positionen unverändert.
 Alpha-6-Room-Struktur und Raumreinigung sind noch nicht hardwarevalidiert.
 
+## RC.9: exact Yeedi-950 clean-log request profile
+
+Rechecked pinned protocol facts (no implementation/test/fixture copied):
+[ecovacs-deebot.js command.js at f1ae56e](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/command.js)
+selects `cv=1.94.76&t=a&av=1.3.0` for is950type plus Yeedi auth-domain.
+The CleanLogs body fields are auth, did, country, td=GetCleanLogs, resource.
+The API remains lg/log.do. RC9 uses exactly these query values and country=DE.
+No device-manager query fields, extra headers or newer clean-result endpoint.
+[DeebotUniverse clean_logs.py at be8cbbd](https://github.com/DeebotUniverse/client.py/blob/be8cbbda9159e8b750efc4727eccf66ae5ff80bf/deebot_client/commands/json/clean_logs.py)
+independently confirms query parameters on lg/log.do, but its different app
+version values are NOT used as the Yeedi profile.
+
+Owner-observed RC8 response: ret=ok and an empty logs list. RC9 tests whether
+the missing documented query/country explains that response. No hardware
+success claimed. TLS, auth, read retries, 180s backoff, URL/PNG validation,
+RAM-only storage and image priority are unchanged. No MQTT or setMajorMap.
+If this exact request again returns ret=ok/logs=[], regard this legacy path
+as practically negative for the target device; no further small request
+variations in subsequent RCs.
+
 ## RC.8: historical HTTPS clean-log image (research gate)
 
 This independently implemented fallback uses only protocol/model facts:

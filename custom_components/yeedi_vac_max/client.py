@@ -277,9 +277,9 @@ class YeediClient:
         try:
             async with asyncio.timeout(READ_RETRY_BUDGET + 4):
                 await self.authenticate()
-                response = await self._request('POST', PORTAL + 'lg/log.do', retry=True,
+                response = await self._request('POST', PORTAL + 'lg/log.do?cv=1.94.76&t=a&av=1.3.0', retry=True,
                     json={'auth': self._auth(), 'td': 'GetCleanLogs',
-                          'did': robot.did, 'resource': robot.resource})
+                          'did': robot.did, 'country': 'DE', 'resource': robot.resource})
                 return latest_image_url(response, probe)
         except (CommandTimeout, TimeoutError):
             raise CleanLogError('portal_timeout') from None
