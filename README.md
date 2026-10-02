@@ -1,6 +1,38 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.9** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.10** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC10 ergänzt ausschließlich Position-only Fast Polling: bei beobachtetem
+`cleaning` oder `returning` etwa alle fünf Sekunden nur `getPos`.
+Ein Task je Roboter, kein Fast-Read-Retry, fünf Sekunden Gesamtlimit.
+Belegter Geräte-Lock oder wartende Steuerbefehle: Zyklus überspringen.
+Ein bereits laufender Read kann einen neuen Befehl höchstens bis zu seinem
+Timeout verzögern. Normale Positionsreads teilen den Fünf-Sekunden-Abstandscheck.
+Status, Karten und Räume bleiben beim unveränderten 60-Sekunden-Coordinator.
+Die bestehende Session wird wiederverwendet; kein neuer Login je Fast-Poll.
+
+Bei beobachtetem docked/paused/idle/error/offline/unknown stoppt der Task;
+Unload beendet und awaited ihn. Fehler behalten die letzte Position, mit
+mindestens 15 Sekunden Pause; Rate-Limit mindestens fünf Minuten, Authfehler
+setzen den Task bis zum nächsten Aktivitätszyklus aus. Normale Authbehandlung
+bleibt maßgeblich. Keine Positionshistorie oder Positionspersistenz.
+
+Ein Marker ist nur mit aktueller RawMap im RAM und eindeutiger vorhandener
+Rotation projizierbar. Ein reines persistiertes Last-Good-PNG enthält dafür
+keine Geometrie: Fast-Poll kann laufen, ohne dass ein Punkt angezeigt wird.
+Keine Pieces/Transformationsdaten werden dafür zusätzlich gespeichert.
+Kein MQTT, keine neuen Kartenabfragen, keine Overlay-/Decoderänderung.
+RC10-Markerbewegung muss erst durch einen echten Reinigungslauf bestätigt werden.
+
+Hardwaretest: RC10 installieren, HA vollständig neu starten, Diagnose prüfen,
+Reinigung starten und Yeedi-App geschlossen lassen. Nach 1–2 Minuten Karte
+beobachten, nach 2–3 Minuten Diagnose laden. Nach beendeter Reinigung/Rückfahrt
+und beobachtetem docked erneut Diagnose prüfen: Fast-Poll muss beendet sein.
+Nur SavedMap vorhanden und kein Marker ist kein RC10-Fehler; bei später
+erfolgreich geladener RawMap erneut testen.
+
+RC9 ist laut Besitzer hardwaregetestet. Der Legacy-CleanLog-Pfad gilt für
+dieses Gerät praktisch als negativ und wird in RC10 nicht weiterentwickelt.
 
 RC9 korrigiert ausschließlich das belegte Yeedi-950-GetCleanLogs-Requestprofil:
 Query `cv=1.94.76&t=a&av=1.3.0`, zusätzlich `country="DE"` im JSON.
@@ -112,7 +144,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.9** herunterladen (nicht main).
+   **0.2.0-rc.10** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.

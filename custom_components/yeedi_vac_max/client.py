@@ -311,7 +311,7 @@ class YeediClient:
         return list(devices.values())
 
     async def command(self, robot: Robot, name: str, data: dict | list | None = None,
-                      *, writing: bool = False) -> dict:
+                      *, writing: bool = False, retry: bool = True) -> dict:
         """Send a validated command without retaining response diagnostics."""
         if name in (*LEGACY_COMMANDS, "getMapInfo", "getMinorMap", "getMapInfo_V2") and writing:
             raise ValueError("Legacy map probes are read-only")
@@ -319,11 +319,15 @@ class YeediClient:
             raise ValueError('Map selection requires write validation')
         try:
             await self.authenticate()
+        except RateLimited:
+            if not writing and not retry:
+                raise  # Fast read must also back off on authentication HTTP 429.
+            raise CannotConnect("Authentication transport failed before command") from None
         except (CommandUncertain, CannotConnect):
             # No device write has been attempted; status cannot confirm a login.
             raise CannotConnect("Authentication transport failed before command") from None
         response = await self._device_request(writing,
-            "POST", PORTAL + "iot/devmanager.do", retry=not writing and name not in LEGACY_COMMANDS,
+            "POST", PORTAL + "iot/devmanager.do", retry=retry and not writing and name not in LEGACY_COMMANDS,
             params={"cv": "1.94.76", "t": "a", "av": "1.3.0", "mid": TARGET_CLASS_ID,
                     "did": robot.did, "td": "q", "u": self.user_id},
             json={"cmdName": name, "payloadType": "j", "auth": self._auth(), "td": "q",
@@ -552,8 +556,9 @@ class YeediClient:
                   identifier(detail.get("subtype")), polygon(detail.get("value"), detail.get("compress")))
         return tuple(rooms.values())
 
-    async def positions(self, robot: Robot) -> tuple[RobotPosition | None, DockPosition | None]:
-        body = await self.command(robot, "getPos", ["chargePos", "deebotPos"])
+    async def positions(self, robot: Robot, *, retry: bool = True) -> tuple[RobotPosition | None, DockPosition | None]:
+        options = {} if retry else {'retry': False}
+        body = await self.command(robot, "getPos", ["chargePos", "deebotPos"], **options)
         data = object_value(body.get("data"))
         dock = data.get("chargePos")
         dock = dock[0] if isinstance(dock, list) and len(dock) == 1 else None

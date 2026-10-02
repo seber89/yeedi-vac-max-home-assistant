@@ -18,6 +18,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                          entry.data[CONF_PASSWORD], entry.data[CONF_COUNTRY],
                          entry.data["device_id"])
     image_forwarded = False
+    coordinator = None
+    setup_complete = False
     try:
         async with asyncio.timeout(60):
             robots = await client.devices()
@@ -34,6 +36,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.async_config_entry_first_refresh()
         await hass.config_entries.async_forward_entry_setups(
             entry, [platform for platform in PLATFORMS if not image_forwarded or platform != Platform.IMAGE])
+        setup_complete = True
     except (InvalidAuth, VerificationRequired):
         if image_forwarded:
             await hass.config_entries.async_unload_platforms(entry, [Platform.IMAGE])
@@ -49,11 +52,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await hass.config_entries.async_unload_platforms(entry, [Platform.IMAGE])
         client.close()
         raise
+    finally:
+        if not setup_complete and coordinator is not None:
+            await coordinator.async_shutdown()
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        await entry.runtime_data.async_shutdown()
         entry.runtime_data.client.close()
         return True
     return False

@@ -767,6 +767,39 @@ Bei Map-Fehler metadata_valid=false. Fehler-Backoff weiterhin 180s, erfolgreiche
 Cache 3600s. Bestehende Queue/no-op-/Write-Validierung und Positionen unverändert.
 Alpha-6-Room-Struktur und Raumreinigung sind noch nicht hardwarevalidiert.
 
+## RC.10: position-only scheduling, no new protocol
+
+Only the existing `getPos` read with `["chargePos", "deebotPos"]` is used.
+An optional retry switch defaults to the prior command behavior; only fast
+positions disable device read retries. Existing token/expiry caching is
+unchanged; valid tokens cause no login/exchange network requests. Expired
+tokens use only existing authentication, inside the five-second total limit.
+Auth HTTP 429 remains distinguishable to this optional no-retry read so that
+it receives the full rate-limit backoff; default command behavior is unchanged.
+
+One ConfigEntry-owned background task per robot runs only after online
+cleaning/returning was observed by snapshot or post-write status confirmation.
+No optimistic activation on a sent command. Other/unknown/offline observations
+cancel the task. Entry unload/setup failure cancels and joins; HA owns shutdown
+cancellation as well. No reconnect/secondary transport and no MQTT/TLS bypass.
+
+Fast start spacing >=5 seconds, no parallel reads. A busy command lock or
+pending command skips the cycle rather than adding a lock waiter. Normal getPos
+shares the cadence guard to avoid a near-simultaneous normal/fast read. Existing
+60-second snapshot/map/room scheduling, write queue/gap/limit/retries stay intact.
+An in-flight optional read can delay a newly arriving control for at most its
+five-second total timeout. No status/map/battery/room/persistence operations
+are performed by the fast task. Successful positions notify existing listeners;
+RawOverlay/rotation and SavedMap display semantics are unchanged.
+
+Errors preserve positions and do not change coordinator health or spatial
+validity. Transient failure: >=15s pause; HTTP 429: >=300s pause (or end of the
+activity cycle); auth error: suspend until cycle ends, normal auth handling is
+authoritative. Success returns to the five-second target. No position history,
+logging or disk storage. Diagnostics contain only fixed result names, booleans
+and capped count buckets. SavedMap alone cannot supply live projection geometry.
+The target cadence and marker movement still require hardware validation.
+
 ## RC.9: exact Yeedi-950 clean-log request profile
 
 Rechecked pinned protocol facts (no implementation/test/fixture copied):

@@ -36,6 +36,8 @@ async def test_safe_structure_end_to_end(encoded, caplog):
     coordinator = SimpleNamespace(client=c, robots=[ROBOT], data={},
         spatial={ROBOT.did: SpatialState()}, commands={ROBOT.did: CommandState()},
         last_update_success=True)
+    from custom_components.yeedi_vac_max.fast_position import FastPosition
+    coordinator.fast_positions = {ROBOT.did: FastPosition(coordinator, ROBOT)}
     output = await async_get_config_entry_diagnostics(None, SimpleNamespace(runtime_data=coordinator))
     text = json.dumps(output) + caplog.text
     for secret in ("PRIVATE", "9876543", "1234567", "7654321"):

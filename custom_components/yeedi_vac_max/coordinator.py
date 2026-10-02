@@ -15,6 +15,7 @@ from .map_data import YeediMap, YeediRoom, RobotPosition, DockPosition, identifi
 from .raw_map import RawMap, MapChanged, safe_status
 from .map_storage import MapStorage, SavedMap
 from .clean_log_map import HistoricalMap, CleanLogError, safe_probe
+from .fast_position import FastPosition
 
 _LOGGER = logging.getLogger(__name__)
 MAP_INTERVAL = 3600
@@ -100,6 +101,11 @@ class YeediCoordinator(DataUpdateCoordinator):
         self._observed = {}
         self._map_activity = {}  # Poll observations only; independent of command guards.
         self.map_storage = MapStorage(hass, entry.entry_id)
+        self.fast_positions = {r.did: FastPosition(self, r) for r in robots}
+
+    async def async_shutdown(self):
+        await asyncio.gather(*(poll.shutdown() for poll in self.fast_positions.values()))
+        await super().async_shutdown()
 
     async def async_load_saved_maps(self):
         for did, saved in (await self.map_storage.load(self.spatial)).items():
@@ -137,6 +143,7 @@ class YeediCoordinator(DataUpdateCoordinator):
 
     def _remember(self, robot, snapshot):
         self._observed[robot.did] = (time.monotonic(), dict(snapshot))
+        self.fast_positions[robot.did].observe(snapshot)
 
     def _already_done(self, robot, command, data):
         observed = self._observed.get(robot.did)
@@ -199,8 +206,10 @@ class YeediCoordinator(DataUpdateCoordinator):
     async def _spatial_refresh(self, robot, *, force=False, docking_refresh=False):
         state = self.spatial[robot.did]
         try:
-            async with asyncio.timeout(8):
-                state.robot_position, state.dock_position = await self.client.positions(robot)
+            if self.fast_positions[robot.did].normal_read_due():
+                self.fast_positions[robot.did].note_normal_read()
+                async with asyncio.timeout(8):
+                    state.robot_position, state.dock_position = await self.client.positions(robot)
         except (CloudError, TimeoutError):
             state.robot_position = state.dock_position = None
         if not force and time.monotonic() < state.next_map_refresh:
@@ -450,8 +459,12 @@ class YeediCoordinator(DataUpdateCoordinator):
             states = await asyncio.gather(*(self._poll_robot(r) for r in self.robots))
             return {r.did: state for r, state in zip(self.robots, states, strict=True)}
         except (InvalidAuth, VerificationRequired):
+            for poll in self.fast_positions.values():
+                poll.observe({})
             raise ConfigEntryAuthFailed("Yeedi authentication requires attention") from None
         except (CloudError, TimeoutError):
+            for poll in self.fast_positions.values():
+                poll.observe({})
             raise UpdateFailed("Could not refresh Yeedi devices") from None
 
     @staticmethod
@@ -470,6 +483,7 @@ class YeediCoordinator(DataUpdateCoordinator):
                 snapshot = await self.client.snapshot(robot)
         except (CloudError, TimeoutError):
             self._observed.pop(robot.did, None)
+            self.fast_positions[robot.did].observe({})
             return None
         self._remember(robot, snapshot)
         self.async_set_updated_data((self.data or {}) | {robot.did: snapshot})
