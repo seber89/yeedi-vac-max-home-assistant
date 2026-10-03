@@ -1,8 +1,11 @@
 """Vac Max controls using the current activity-based vacuum API."""
-from homeassistant.components.vacuum import StateVacuumEntity, VacuumActivity, VacuumEntityFeature
+from homeassistant.components.vacuum import Segment, StateVacuumEntity, VacuumActivity, VacuumEntityFeature
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import callback
 
 from .client import FAN_SPEEDS
 from .entity import YeediEntity
+from .map_data import identifier
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -16,6 +19,16 @@ class YeediVacuum(YeediEntity, StateVacuumEntity):
     def __init__(self, coordinator, robot):
         super().__init__(coordinator, robot, "vacuum")
 
+    @callback
+    def _handle_coordinator_update(self):
+        state = self.coordinator.spatial[self.robot.did]
+        if self.registry_entry is not None and state.metadata_valid and state.rooms_valid:
+            segments = [Segment(id=r.room_id, name=r.name, group=state.active_map.map_id)
+                        for r in sorted(self.coordinator.rooms[self.robot.did], key=lambda r: r.room_id)]
+            if self.last_seen_segments is not None and self.last_seen_segments != segments:
+                self.async_create_segments_issue()
+        super()._handle_coordinator_update()
+
     @property
     def supported_features(self):
         features = (VacuumEntityFeature.STATE | VacuumEntityFeature.START |
@@ -23,7 +36,39 @@ class YeediVacuum(YeediEntity, StateVacuumEntity):
                     VacuumEntityFeature.RETURN_HOME)
         if self.fan_speed is not None:
             features |= VacuumEntityFeature.FAN_SPEED
+        if self.coordinator.rooms.get(self.robot.did):
+            features |= VacuumEntityFeature.CLEAN_AREA
         return features
+
+    async def async_get_segments(self) -> list[Segment]:
+        """Expose the coordinator cache only; no second cloud room query."""
+        active = self.coordinator.spatial[self.robot.did].active_map
+        return [Segment(id=room.room_id, name=room.name, group=active.map_id)
+                for room in sorted(self.coordinator.rooms.get(self.robot.did, ()), key=lambda r: r.room_id)]
+
+    async def async_clean_segments(self, segment_ids: list[str], **kwargs) -> None:
+        if not isinstance(segment_ids, (list, tuple)) or not segment_ids:
+            raise HomeAssistantError("Select at least one known room")
+        if self.registry_entry is not None and self.last_seen_segments is not None:
+            if self.last_seen_segments != await self.async_get_segments():
+                self.async_create_segments_issue()
+                raise HomeAssistantError("Room mapping changed; configure area mapping again")
+        known = {room.room_id for room in self.coordinator.rooms.get(self.robot.did, ())}
+        selected = []
+        for value in segment_ids:
+            room_id = identifier(value)
+            if room_id is None or room_id not in known or "," in room_id:
+                raise HomeAssistantError("Unknown or invalid room selection")
+            if room_id not in selected:
+                selected.append(room_id)
+        active = self.coordinator.spatial[self.robot.did].active_map
+        if active is None:
+            raise HomeAssistantError("No active map available")
+        await self.coordinator.execute(self.robot, "clean", {
+            "act": "start", "type": "spotArea", "content": ",".join(selected),
+            "count": 1, "donotClean": 0, "router": "plan",
+        }, expected_map_id=active.map_id,
+           expected_generation=self.coordinator.spatial[self.robot.did].room_generation)
 
     @property
     def activity(self):

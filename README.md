@@ -1,103 +1,337 @@
 # Yeedi Vac Max für Home Assistant
 
-**0.1.0 — Experimental / initial test release. Implementiert und automatisch getestet; Live-Test am DVX34 steht aus.**
+Version **0.2.0-rc.17** — Release Candidate für 0.2.0, noch keine Stable-Version.
 
-Direkte Verbindung zum **bestehenden Yeedi-Konto** in Deutschland. Der Roboter bleibt in der Yeedi-App. Die Integration läuft in Home Assistant und benötigt weder Node.js noch Node-RED, n8n, einen zusätzlichen Container oder einen separaten Dienst.
+RC.17 berücksichtigt bestätigte Activity auch aus dem Statusread nach Befehlen
+für die Docking-Erkennung. Eine dabei erkannte Docking-Kante wird einmal beim
+nächsten normalen Coordinator-Poll konsumiert, unabhängig vom Karten-Cache.
+Fehler verwenden weiterhin den normalen Backoff. Kein neuer Timer oder Task;
+FastPosition und RC.16-Markerprojektion bleiben unverändert. Hardwaretest offen.
 
-## Was diese Version macht
+RC.16 trennt Rasterunterstützung zur Orientierung von der Markerprojektion:
+Bei sicherer Rotation darf eine gültige Position auch auf einem Nullpixel
+innerhalb des Kartenausschnitts erscheinen. Null bedeutet fehlende Kartendaten,
+nicht nachgewiesene Unbetretbarkeit. Major-/Crop-Grenzen gelten weiter, beim
+Dock mit höchstens einer Rasterzelle Randtoleranz. Mehrdeutige Projektionen
+werden nicht geraten. FastPosition und Kartenbeschaffung bleiben unverändert;
+die praktische Verbesserung muss noch auf Hardware bestätigt werden.
 
-- Config Flow mit Yeedi-Konto/E-Mail, Passwort und Land `DE`.
-- Anmeldung über Yeedi-Hosts und Yeedi-App-Identität; automatische Erkennung aller `04z443` im Konto.
-- Start/Fortsetzen, Pause, Stop, Rückkehr zur Ladestation.
-- Status, Akku-Sensor und Verbindungssensor; Aktualisierung alle 60 Sekunden.
-- Saugleistung lesen/setzen: Quiet, Normal, Max. Die Stufen stammen aus dem bekannten Vac-Max-Profil, nicht aus einer geratenen Vierstufenliste. Die Auswahl wird erst angeboten, wenn eine bekannte Saugleistung vom Gerät gelesen wurde.
-- Wiederverwendung der Cloud-Tokens, erneute Anmeldung vor deren Ablauf, erneute Eingabe der Zugangsdaten bei Authentifizierungsfehlern.
-- Begrenzte Wartezeiten, keine automatische Wiederholung von Steuerbefehlen und keine optimistisch erfundenen Zustände.
-- Bereinigte Diagnoseinformationen ohne Konto, Tokens, Geräte-IDs oder Rohantworten.
+RC.15 verbessert ausschließlich die RawMap-Markerauflösung: Widersprüchliche
+aktuelle Beobachtungen dürfen spätere gültige Positionen nicht dauerhaft sperren.
+Bei mehrdeutiger Rotation erscheint ein Marker nur, wenn alle verbleibenden
+Kandidaten exakt dieselbe gültige Bildposition ergeben. Fehlende Positionen
+werden nicht erfunden; die Karte bleibt sichtbar. Der bestehende 5-Sekunden-
+Positionspoll ist unverändert. Der Markerfix muss noch auf Hardware geprüft werden.
 
-**Ein bestandener automatischer Test beweist keine funktionierende Anmeldung am echten Konto.** Der Client implementiert das in den Referenzprojekten belegte HTTPS-Protokoll. Änderungen der Yeedi-Cloud oder abweichende Geräteantworten können weitere Anpassungen verlangen. Siehe [Protokoll und Quellen](docs/PROTOCOL.md).
+RC.14 ist ausschließlich Diagnose: `raw_composition` zeigt abstrakt, ob die
+decodierten Pieces bereits leer sind oder Sichtbarkeit erst bei Raster/Crop
+verloren geht, und unterscheidet neu geladene Pieces von Cache-Wiederverwendung.
+Kein reproduzierbarer Pixelverlust im Code nachgewiesen; kein Funktionsfix.
+Keine zusätzlichen Cloud-Abfragen oder Speicherung dieser Messwerte.
+`available`/`complete` können weiterhin die letzte gute Bildkarte beschreiben,
+während `image_generated`/`failure_stage` den letzten Build beschreiben.
 
-## Zielgerät
+RC.13 ergänzt ausschließlich privacy-safe RawMap-Refresh-Diagnose: begrenzte
+RAM-Zähler für Fresh-/Normalversuche, deren Ergebnisse und aktuelle
+Rückhaltebedingungen. Kein Scheduling- oder Funktionsfix; 180-Sekunden-Backoff,
+60-Sekunden-Coordinator und Positionspolling bleiben unverändert. Die Zähler
+werden beim Unload verworfen und niemals gespeichert.
 
-| Angabe | Stand |
-| --- | --- |
-| Hersteller / Modell | yeedi / Yeedi Vac Max DVX34 |
-| Geräteklasse / Familie | `04z443` / K781 |
-| Region | Deutschland (`DE`); andere Länder werden derzeit ausdrücklich abgelehnt |
-| Firmware | 1.2.9 laut Besitzer, **Live-Test damit noch ausstehend** |
-| Home Assistant | Imports und Tests mit 2026.9.2, Python 3.14.7 |
-| Mindestversion laut HACS | 2026.3.0; nicht separat getestet |
+RC12 erhält eine auf echter RawMap-Geometrie eindeutig erkannte Rotation im
+bestehenden privaten RAM-State derselben bestätigten Map. RC11-Fahrmarker und
+deren Aktualisierung wurden vom Besitzer hardwarebestätigt. Der Dockmarker nach
+frischem Kartenaufbau bleibt der Hardwaretest für RC12.
 
-Firmware wird nicht als angeblich gemessener Wert in die Geräte-Registry eingetragen. Wassermenge, Verbrauchsmaterialien, Reinigungsstatistiken, Karten, Räume und Bereiche sind noch nicht implementiert.
+Ursache im RC11-Code: ein neues RawOverlay übernimmt Kandidaten nur bei exakt
+gleicher Major-Struktur einschließlich CRC-Liste. Neue Kartengeometrie kann
+behaltene Fahrpunkte erneut mehrdeutig machen; die vorherige eindeutige Rotation
+war außerhalb des alten Overlay-Objekts nicht gespeichert.
 
-## Installation über HACS
+RC12 verwendet die behaltene Rotation nur mit bestätigter identischer aktiver
+Map und einem aktuell plausibel projizierbaren Dock als Anker. Brauchbare aktuelle
+Roboterpositionen und die nichtleere gemeinsame Fahrpunkte-Evidenz dürfen ihr
+nicht widersprechen. Bei Widerspruch wird sie verworfen und die bestehende
+konservative Kandidatenprüfung erneut benutzt. Jeder Marker bleibt separat
+geometrisch geprüft; kein Clamping oder Korrigieren gelieferter Positionen.
+Ohne Dock-Anker gelten die bisherigen RC11-Regeln. Die Karte bleibt verfügbar,
+auch wenn kein Marker sicher möglich ist.
 
-Das Repository muss dafür zuerst auf GitHub veröffentlicht sein. Eine lokale ZIP-Datei allein ist kein HACS-Repository.
+Rotation und Evidenz bleiben RAM-only, werden bei bestätigtem Kartenwechsel und
+Unload gelöscht und gelangen weder in Storage, Logs noch Diagnostics. SavedMap
+bleibt ohne Overlay. Polling, Cloud, Decoder, Persistenz und Steuerung unverändert.
 
-1. HACS öffnen.
-2. Menü mit den drei Punkten → **Benutzerdefinierte Repositories** (Anordnung je nach HACS-Version).
-3. `https://github.com/seber89/yeedi-vac-max-home-assistant` einfügen.
-4. Kategorie **Integration** auswählen und hinzufügen.
-5. **Yeedi Vac Max (Experimental)** herunterladen; bei Bedarf `main` auswählen.
-6. Home Assistant neu starten.
-7. **Einstellungen → Geräte & Dienste → Integration hinzufügen**.
-8. **Yeedi Vac Max** suchen.
-9. Die Zugangsdaten des **Yeedi-Kontos**, nicht eines Ecovacs-Kontos, eingeben.
-10. Land `DE` verwenden und absenden.
+Hardwaretest RC12: installieren, HA vollständig neu starten, Ausgangsdiagnose
+sichern. Normale Reinigung mit geschlossener Yeedi-App starten; nach 1–2 Minuten
+bewegten blauen Marker und Diagnose prüfen. Regulär zurückfahren/andocken lassen,
+ohne Neustart oder Reload dazwischen. Nach frischem RawMap-Aufbau prüfen, ob bei
+vorhandener Dockposition auch ohne Roboterposition ein plausibler orangener
+Dockmarker bleibt. Abschlussdiagnose sichern. RC12-Docking-Marker unbestätigt.
 
-Der Roboter muss vorher in der Yeedi-App eingerichtet sein. Die Integration legt für jeden passenden Vac Max ein Gerät mit Vacuum-, Akku- und Verbindungseintrag an. Ein offline gemeldeter Roboter kann eingerichtet werden und wird als nicht verfügbar angezeigt.
+RC11 testet ausschließlich begrenzte Orientierungsevidenz für die vorhandenen
+Roboter-/Dockmarker. RC10-Fast-Polling ist laut Besitzer auf dem Yeedi Vac Max
+hardwarebestätigt: erfolgreiche getPos-Reads während Reinigung und Rückfahrt,
+sauberes Ende nach beobachtetem Andocken. Die Marker-Erkennung von RC11 muss
+noch auf Hardware geprüft werden.
 
-HACS-Struktur ist lokal geprüft; eine vollständige Installation über HACS muss noch getestet werden. Das Repository ist nicht Bestandteil des Standardkatalogs. Die Manifest-Version ist 0.1.0; vom Standardbranch kann ohne GitHub-Release installiert werden.
+Während beobachtetem cleaning/returning bleiben maximal 16 unterschiedliche,
+valide Roboterpositionen im RAM, gebunden an die bestätigte aktive Map-ID.
+Keine Winkelinterpretation, Zeitstempel, Fahrtlinie oder Speicherung auf Platte.
+Die Punkte bleiben bis nach dem Andocken für eine neu geladene echte RawMap
+nutzbar; bestätigter Map-Wechsel und Unload verwerfen sie.
 
-### Manuell aus der ZIP-Datei
+Für jede neue RawMap-Generation werden die Punkte gegen die vorhandenen vier
+Rotationen geprüft. Nur eine eindeutige gemeinsame Schnittmenge erlaubt Marker;
+mehrdeutige oder widersprüchliche Evidenz erzwingt keine Rotation. Auch danach
+muss jeder aktuelle Robot-/Dockmarker auf belegter Geometrie plausibel sein.
+Ein reines SavedMap-PNG erhält weiterhin kein Overlay. RC11 ergänzt keine
+Cloud-Abfragen; getPos bleibt bei etwa fünf Sekunden während aktiver Zustände,
+der normale Coordinator bei 60 Sekunden. Diagnostics exportieren keine Evidenz.
 
-1. Das fertige ZIP-Paket entpacken.
-2. Den enthaltenen Ordner `custom_components/yeedi_vac_max` in den Konfigurationsordner von Home Assistant kopieren, sodass `/config/custom_components/yeedi_vac_max/manifest.json` existiert.
-3. Falls die alte Vorstufe installiert ist, den Ordner durch diese Version ersetzen.
-4. Home Assistant neu starten und ab Schritt 7 der Anleitung fortfahren.
+Hardwaretest: RC11 installieren, HA vollständig neu starten, normale Reinigung
+mit geschlossener Yeedi-App durchführen und regulär zurückfahren/andocken lassen.
+Nach dem frischen RawMap-Aufbau prüfen, ob Robot-/Dockmarker sichtbar und
+plausibel sind. Nur eine gespeicherte PNG-Karte oder weiterhin mehrdeutige
+Orientierung kann weiterhin ohne Marker erscheinen. Diagnose vor Reinigung,
+während Reinigung und nach dem Andocken herunterladen.
 
-Hierfür reicht ein bereits vorhandener Zugang zum HA-Konfigurationsordner; es wird kein zusätzlicher Cloud-Dienst benötigt.
+RC10 ergänzt ausschließlich Position-only Fast Polling: bei beobachtetem
+`cleaning` oder `returning` etwa alle fünf Sekunden nur `getPos`.
+Ein Task je Roboter, kein Fast-Read-Retry, fünf Sekunden Gesamtlimit.
+Belegter Geräte-Lock oder wartende Steuerbefehle: Zyklus überspringen.
+Ein bereits laufender Read kann einen neuen Befehl höchstens bis zu seinem
+Timeout verzögern. Normale Positionsreads teilen den Fünf-Sekunden-Abstandscheck.
+Status, Karten und Räume bleiben beim unveränderten 60-Sekunden-Coordinator.
+Die bestehende Session wird wiederverwendet; kein neuer Login je Fast-Poll.
 
-## Erster Live-Test
+Bei beobachtetem docked/paused/idle/error/offline/unknown stoppt der Task;
+Unload beendet und awaited ihn. Fehler behalten die letzte Position, mit
+mindestens 15 Sekunden Pause; Rate-Limit mindestens fünf Minuten, Authfehler
+setzen den Task bis zum nächsten Aktivitätszyklus aus. Normale Authbehandlung
+bleibt maßgeblich. Keine Positionshistorie oder Positionspersistenz.
 
-1. Prüfen, dass die normale Yeedi-App den Roboter erreicht.
-2. Integration hinzufügen. Falls die Anmeldung scheitert, genaue Fehlermeldung notieren.
-3. Akku und Status mit der App vergleichen (bis zu 60 Sekunden Verzögerung).
-4. Roboter an einem geeigneten freien Platz testen: Start → Pause → Fortsetzen → Stop → Ladestation.
-5. Saugleistung jeweils ändern und in der App prüfen.
-6. HA neu starten und die Wiederverbindung prüfen.
+Ein Marker ist nur mit aktueller RawMap im RAM und eindeutiger vorhandener
+Rotation projizierbar. Ein reines persistiertes Last-Good-PNG enthält dafür
+keine Geometrie: Fast-Poll kann laufen, ohne dass ein Punkt angezeigt wird.
+Keine Pieces/Transformationsdaten werden dafür zusätzlich gespeichert.
+Kein MQTT, keine neuen Kartenabfragen, keine Overlay-/Decoderänderung.
+RC10-Fast-Poll ist hardwarebestätigt; sichtbare Marker benötigen weiterhin
+eine sichere RawMap-Projektion.
 
-Ein Timeout bedeutet **unklarer Ausgang**: Ein Steuerbefehl könnte beim Roboter angekommen sein, obwohl die Bestätigung fehlt. Vor erneutem Start zuerst in der App nachsehen. Keine automatischen Wiederholungen auf eine Fehlermeldung konfigurieren.
+Hardwaretest: RC10 installieren, HA vollständig neu starten, Diagnose prüfen,
+Reinigung starten und Yeedi-App geschlossen lassen. Nach 1–2 Minuten Karte
+beobachten, nach 2–3 Minuten Diagnose laden. Nach beendeter Reinigung/Rückfahrt
+und beobachtetem docked erneut Diagnose prüfen: Fast-Poll muss beendet sein.
+Nur SavedMap vorhanden und kein Marker ist kein RC10-Fehler; bei später
+erfolgreich geladener RawMap erneut testen.
 
-## Fehlerbehebung
+RC9 ist laut Besitzer hardwaregetestet. Der Legacy-CleanLog-Pfad gilt für
+dieses Gerät praktisch als negativ und wird in RC10 nicht weiterentwickelt.
 
-- **Falsche Zugangsdaten:** Yeedi-Konto und Passwort prüfen. Keine Migration vornehmen.
-- **Kein Vac Max gefunden:** Konto und Klasse prüfen; nur `04z443` wird angelegt.
-- **Cloud nicht erreichbar:** später erneut versuchen; VPN, DNS und Internetverbindung prüfen.
-- **Zusätzliche Geräteverifizierung (1013):** dafür gibt es noch keinen implementierten Bestätigungscode-Ablauf. Die Einrichtung meldet diese Grenze ausdrücklich. Nicht wiederholt Passwörter ausprobieren; Fehler ohne Geheimnisse melden.
-- **Roboter offline:** Stromversorgung und Verbindung in der Yeedi-App prüfen.
-- **Saugleistung fehlt:** `getSpeed` wurde nicht erfolgreich oder mit unbekanntem Wert beantwortet. Es werden dann keine Stufen angeboten.
-- **Unbekannte API-Antwort / Befehl nicht bestätigt:** Debug-Logging einschalten und bereinigte Meldung melden; keine Raw-Cloud-Traces sammeln.
-- **Integration nicht sichtbar:** Verzeichnis und Manifest prüfen, HA neu starten, Browser neu laden.
+RC9 korrigiert ausschließlich das belegte Yeedi-950-GetCleanLogs-Requestprofil:
+Query `cv=1.94.76&t=a&av=1.3.0`, zusätzlich `country="DE"` im JSON.
+RC8 erreichte auf Hardware den Portalpfad, erhielt aber `ret=ok`, `logs=[]`.
+Download, TLS-Prüfung, PNG-/URL-Sicherheit, RAM-only und Backoff bleiben gleich.
+Erneut angedockt testen, ohne Reinigung oder Yeedi-App-Refresh. Liefert das exakt
+dokumentierte Profil wieder `ret=ok` und `logs=[]`, gilt der Legacy-CleanLog-Pfad
+für dieses Gerät praktisch als negativ: keine weiteren RCs mit kleinen
+GetCleanLogs-Variationen. RC9-Hardwarefunktion ist noch nicht bestätigt.
 
-Protokolle: **Einstellungen → System → Protokolle**. Optional in `configuration.yaml` ergänzen:
+RC8 testet ausschließlich einen historischen HTTPS-Bildfallback. Wenn der normale
+RawMap-Aufbau vollständig verifiziert nur Nullpixel liefert und keine gute RawMap
+oder gespeicherte Last-Good-Karte existiert, wird über GetCleanLogs das neueste
+brauchbare Reinigungsbild gesucht. Nur HTTPS auf portal-eu.ecouser.net unter
+/api/lg/image/ ist erlaubt: keine Redirects, keine anderen Hosts, normale
+TLS-Verifikation. Download und PNG werden begrenzt und strukturell validiert.
+Fehlversuche haben mindestens drei Minuten Backoff; ein vorhandenes Fallback
+wird nicht bei jedem Poll neu geladen. Kein automatisches setMajorMap mehr.
+
+Das Bild ist **keine bestätigte Live-Karte**: Es kann eine frühere Raumaufteilung
+oder Etage zeigen. Deshalb ausschließlich RAM, keine Last-Good-Persistenz und
+keine Roboter-/Dockmarker darauf. Bei erkanntem Kartenwechsel wird es verworfen.
+Priorität: echte RawMap, gespeicherte RawMap, historisches PNG, Raum-SVG.
+Steuerung, Räume, Polling, Raw-Decoder/-Renderer und Raw-Overlay bleiben unverändert.
+MQTT bleibt entfernt: Ein sicherer Vertrauensanker ist derzeit nicht belegt
+(siehe docs/RESEARCH_SAFE_MAP_EVENTS.md). Keine TLS-Ausnahme wird eingeführt.
+Der HTTPS-Fallback ist noch nicht auf dem echten Yeedi hardwarebestätigt.
+
+Hardwaretest: RC8 installieren, HA vollständig neu starten, Roboter angedockt
+lassen, keine Reinigung und keinen Yeedi-App-Refresh auslösen. Nach etwa zwei
+Minuten Image-Entity prüfen und Diagnose herunterladen.
+
+RC5 ergänzt einen privaten lokalen Last-Good-Map-Cache über Home Assistants
+Storage. Gespeichert werden nur das fertig gerenderte Basis-PNG und die
+versionsgebundene Karten-/Gerätezuordnung. Keine Pieces, Cloudantworten,
+Positionen, Räume oder Zugangsdaten. Der Grundriss ist privat: HA-Storage
+und Backups entsprechend schützen. Nach Neustart kann zunächst dieses PNG
+ohne alte Positionsmarker erscheinen, während der normale Cloudabruf läuft.
+Timeouts, Nullpixel, ungültige Raum-/Map-Metadaten und Cache-Alter löschen
+das letzte gute Bild nicht. Eine bestätigt andere aktive Map-ID invalidiert es.
+Explizites isCharging=1/"1" hat bei gleichzeitigem Cleaning-Alert Vorrang.
+RC5 muss noch mehrere Tage auf echter Hardware getestet werden.
+
+RC4 bewahrt einen bestehenden Kartenhintergrund derselben aktiven Map während
+cleaning/paused/returning ohne periodischen Raw-Neubuild. Positionen werden
+weiter regulär gelesen. Ein beobachteter Übergang eines bekannten, online
+nicht angedockten Zustands zu docked löst einmalig einen frischen Kartenabruf
+aus. Wiederholtes docked allein löst keinen weiteren Sonderabruf aus.
+Ohne bekannte Karte bleibt normales Laden möglich; RC5 ergänzt den PNG-Fallback.
+
+Marker erscheinen erst bei eindeutiger Zuordnung aus 0/90/180/270 Grad.
+Die Kandidaten werden je Raw-Generation anhand belegter Rasterzellen eingegrenzt;
+für das Dock ist eine Rasterzelle Randtoleranz erlaubt. Mehrdeutigkeit bedeutet
+Karte ohne Marker. RC4-Lebenszyklus und Orientierung sind noch nicht auf
+Hardware bestätigt.
+
+RC3 ergänzt auf der bestätigten RC2-RawMap einen blauen Roboterkreis und
+ein orangefarbenes Dockquadrat. Die Marker folgen dem vorhandenen
+Positions-Polling (etwa 60 Sekunden), ohne zusätzliche Cloudabfragen.
+Fehlende, ungültige oder außerhalb des sichtbaren Kartenausschnitts liegende
+Positionen werden ausgelassen. Kein Richtungspfeil, keine Winkelannahme.
+Die Overlay-Ausrichtung muss mit RC3 noch auf echter Hardware geprüft werden.
+
+RC2 stellt den begrenzten read-only getMapInfo-Aufruf vor dem Raw-Map-Laden
+wieder her. Dieser Ablauf war in Beta 6.4 vorhanden und wurde in RC1
+irrtümlich als reine Forschungsdiagnose entfernt. Der RC1-Hardwaretest zeigte
+danach vollständig dekodierte, aber leere Karten-Pieces. Ein notwendiger
+Map-Warmup ist die Arbeitshypothese; RC2 muss dies auf Hardware bestätigen.
+Keine MQTT-Diagnose oder TLS-Ausnahme kehrt zurück. Decoder, Darstellung,
+Cache und Steuerung bleiben unverändert.
+
+Unofficial community integration for Home Assistant.
+Not affiliated with, maintained by, or endorsed by Yeedi,
+Ecovacs or Home Assistant.
+
+Direkte Integration des bestehenden Yeedi-Kontos in Deutschland.
+Der Roboter bleibt in der Yeedi-App. Kein Ecovacs-Kontoumzug, Node.js,
+Node-RED, n8n, Container oder zusätzlicher Dienst erforderlich.
+
+## Funktionen und bestätigter Stand
+
+- Start / Fortsetzen, Pause, Stop und Rückkehr zur Ladestation.
+- Saugleistung Quiet / Normal / Max, sofern vom Gerät erfolgreich gelesen.
+- Status, Akku und Verbindung; reguläre Aktualisierung etwa alle 60 Sekunden.
+- Native Home-Assistant-Raumreinigung für einen oder mehrere zugeordnete Räume.
+- Map Image Entity: Karte aus den Yeedi-MajorMap-/MinorMap-Daten,
+  mit Crop, Rand und begrenzter pixelgenauer Vergrößerung.
+- Kartenanzeige funktioniert unabhängig von Raum-Polygonen und Roboterposition.
+
+Zielgerät: Yeedi Vac Max DVX34 / K781, Geräteklasse 04z443, Region DE.
+Andere Länder und Geräteklassen werden nicht angeboten.
+Geprüfte Home-Assistant-Version und HACS-Mindestversion: **2026.9.2**.
+
+Der Besitzer hat mit Beta 6.4 die sichtbare, lesbare und aktualisierte Karte,
+erneute Kartenverfügbarkeit nach vollständigem HA-Neustart, Stop, Pause,
+Return Home und Raumreinigung auf echter Hardware bestätigt.
+Start und Basisverbindung wurden bereits in früheren Hardwaretests bestätigt.
+Resume und Fan Speed sind implementiert und automatisiert geprüft; dieser
+RC behauptet keine zusätzliche aktuelle Hardwarevalidierung dafür.
+
+RC1 entfernt ausschließlich temporäre Forschung: MQTT-Diagnose einschließlich
+ihrer isolierten TLS-Ausnahme, zusätzliche Diagnoseabfragen und Formatproben.
+Die getestete HTTPS-Kartenpipeline, Bilddarstellung und Steuerung bleiben erhalten.
+Es wird keine MQTT-Verbindung aufgebaut und keine Zertifikatsprüfung deaktiviert.
+Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
+
+## Installation mit HACS
+
+1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
+   https://github.com/seber89/yeedi-vac-max-home-assistant
+2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
+   **0.2.0-rc.17** herunterladen (nicht main).
+3. Home Assistant vollständig neu starten.
+4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
+   **Yeedi Vac Max** auswählen.
+5. Zugangsdaten des bestehenden **Yeedi-Kontos** und Land **DE** eingeben.
+
+Der Roboter muss bereits in der Yeedi-App eingerichtet sein. Für ein Update
+keine zweite Integration anlegen. Bei manueller ZIP-Installation den Ordner
+custom_components/yeedi_vac_max vollständig ersetzen, damit entfernte
+Diagnosemodule nicht als alte Dateien zurückbleiben; anschließend HA neu starten.
+Vorher die vorhandene Installation sichern.
+
+## Räume und Kartenwechsel
+
+Die Segmente stammen aus der aktuellen Yeedi-Karte. In Home Assistant die
+Segmente HA-Bereichen zuordnen und die native Aktion `vacuum.clean_area`
+verwenden. Ein oder mehrere Bereiche sind möglich; Auto Clean bleibt separat.
+Ohne gültige Räume wird Raumreinigung nicht angeboten.
+
+Die Integration folgt genau der aktuell gemeldeten aktiven Yeedi-Major-Map.
+Karten und Räume werden beim Setup/Reload und danach regelmäßig neu geladen.
+Kartenwechsel oder geänderte Raumstruktur machen alte Auswahlen ungültig.
+Vor einem Raumauftrag werden Karte und Raumgeneration erneut geprüft;
+gegebenenfalls ist eine neue HA-Bereichszuordnung nötig.
+Keine automatische Zuordnung anhand der Lage und keine parallele Etagenauswahl.
+
+## Kartenbild im Dashboard
+
+Die bestehende Image Entity kann in einer Standard-Bildkarte verwendet werden.
+Den Beispielnamen durch die tatsächliche Entity-ID ersetzen:
 
 ```yaml
-logger:
-  logs:
-    custom_components.yeedi_vac_max: debug
+type: picture-entity
+entity: image.wohnzimmer_robbi_map
+show_name: true
+show_state: false
 ```
 
-Nach Neustart den Fehler einmal reproduzieren und Debug-Logging wieder deaktivieren. Die Integration protokolliert keine Passwörter, Tokens, Cookies, Konten oder kompletten URLs. Über die Geräte-&-Dienste-Seite lassen sich Diagnoseinformationen herunterladen; auch diese sind auf unkritische Statusfelder begrenzt.
+Nur vollständig validierte Karten werden angezeigt. Raw-Map-Anzeige benötigt
+keine Raum-Polygone. Der belegte Legacy-Ursprung im vollständigen Rasterzentrum
+und die tatsächliche Map-Auflösung bestimmen die Positionen; dieselbe Crop-,
+Padding- und Skalierungsberechnung wie beim PNG bestimmt die Bildkoordinaten.
+Ein selbst erzeugtes SVG bettet das unveränderte PNG ein und zeichnet die Marker.
+Ohne darstellbare Marker wird weiterhin das PNG ausgegeben.
+Positionsänderungen aktualisieren nur die Bildhülle, nicht Decoder oder Pieces.
 
-## Sicherheit und Grenzen
+Die letzte gute Basis-Karte wird lokal privat und atomar gespeichert. Nach
+Neustart steht sie nach Geräteerkennung und Cache-Load als PNG-Fallback bereit,
+noch vor dem ersten räumlichen Cloud-Refresh. Aktuelle Marker benötigen wieder
+eine frische RawMap im Speicher; Positionen werden niemals persistiert.
+Nur ein vollständiger erfolgreicher Build der bestätigten aktiven Karte ersetzt
+den Cache. Temporäre Fehler und Zeitablauf verstecken das Bild nicht; Room-
+Kommandos bleiben trotzdem an ihre bisherigen Gültigkeitsprüfungen gebunden.
+Unload und Neustart erhalten den Cache. Eine positiv bestätigte andere aktive
+Map-ID verwirft die alte Zuordnung. Bei fehlendem/defektem Storage oder solange
+noch nie eine gute Karte geladen wurde, bleibt normales Cloud-Laden erforderlich.
 
-Zugangsdaten werden nur im Config Flow eingegeben und durch Home Assistant in dessen Konfigurationsspeicher gespeichert. **HA-Dateisystem und Backups schützen:** diese Speicherung ist kein externer Passworttresor. Tokens bleiben nur im Arbeitsspeicher. Beim Entladen wird die Sitzung beendet, ohne die gemeinsam von HA verwendete HTTP-Verbindung zu schließen.
+## Befehle und Fehlerbehandlung
 
-Keine Garantie für unveränderte Cloud-APIs. Kein separates Refresh-Token-Verfahren wurde verifiziert; wie die Referenzclients erneuert diese Version abgelaufene Zugangstokens durch den Login-Ablauf. Login geschieht nicht bei jeder Statusabfrage.
+Schreibbefehle werden pro Roboter serialisiert, mit maximal vier laufenden/
+wartenden Aufrufen und 1,5 Sekunden Abstand. Offensichtlich bereits erfüllte
+Aktionen werden bei frischem eindeutigen Status lokal übersprungen.
+Es gibt keine automatischen Schreib-Retries.
+
+Bei unklarer Antwort oder Timeout kann ein gezielter Status-Refresh die passende
+Aktivität bestätigen. Explizite Ablehnungen bleiben Fehler.
+Ein beobachtetes cleaning bestätigt nur eine laufende Reinigung, nicht
+protokollseitig die exakte Auswahl der Räume. Vor einem erneuten manuellen
+Befehl bei unklarem Ausgang zuerst den Roboter prüfen.
+
+## Diagnose, Sicherheit und Grenzen
+
+Die herunterladbare Diagnose enthält nur Integrationsversion, grobe
+Status-/Gültigkeitsflags, Piece-Anzahlklassen und feste Fehlerkategorien.
+Keine Kontodaten, Tokens, Geräte-/Karten-/Raum-IDs, Namen, Koordinaten,
+CRCs, Rohantworten oder Kartenbilder. Keine Forschungsproben und kein MQTT.
+
+Home Assistant speichert die eingegebenen Zugangsdaten in seiner Konfiguration.
+HA-Dateisystem und Backups schützen. Tokens verbleiben im Speicher.
+Die gemeinsame HA-HTTPS-Sitzung wird beim Entladen nicht geschlossen.
+
+Bei Authentifizierungsfehlern Yeedi-Zugangsdaten prüfen; kein Kontoumzug nötig.
+Für zusätzliche Yeedi-Geräteverifikation gibt es keinen implementierten
+Code-Eingabeablauf. Cloud-Änderungen können Anpassungen erfordern.
+Wassermenge, Verbrauchsmaterialien, Reinigungsstatistiken, Karteneditierung
+und Navigation per Kartenklick werden nicht angeboten.
 
 ## Entwicklung und Lizenz
 
-`python scripts/validate.py` prüft Python/JSON und Struktur. Für Laufzeittests mit Python 3.14: `pip install -r requirements-test.txt`, dann `python -m pytest -q`. [Prüfprotokoll](docs/VALIDATION.md).
+Validierung: `python scripts/validate.py` und `python -m pytest -q`.
+Testumgebung: Python 3.14 mit `requirements-test.txt`.
+[Prüfprotokoll](docs/VALIDATION.md) · [Protokollhistorie](docs/PROTOCOL.md)
 
-Die bestehende [MIT-Lizenz](LICENSE) ist unverändert. Der kleine Client wurde eigenständig anhand dokumentierter Protokollfelder implementiert; kein GPL-Bibliothekscode und kein fremdes Paket wurden kopiert. Öffentliche App-Identifikatoren und ihre Quellen stehen in [PROTOCOL.md](docs/PROTOCOL.md). Das Projektsymbol ist kein offizielles Yeedi-Logo.
+[MIT-Lizenz](LICENSE) und [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES.md)
+bleiben erhalten. Eigenständiger Client, Decoder und Renderer; kein kopierter
+oder portierter GPL-Code, keine GPL-Runtime-Abhängigkeit, keine Markenlogos.
+Dieser RC liegt ausschließlich auf feature/rooms-position-map.
+Kein Merge nach main und keine Veröffentlichung von 0.2.0 Stable.
