@@ -1,7 +1,24 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.16. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.17. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC.17 — observed docking edge across status paths
+
+Fail-first tests reproduce a missing fresh build when normal polls see docked
+before and after a cleaning/returning state observed only by the post-write
+status refresh. `_remember` previously updated HA/command observations and
+FastPosition but not `_map_activity`, used exclusively by `_poll_robot`.
+The cache was not blocking a correctly detected edge. Shared observation now
+updates map activity and retains at most one pending docking edge per robot.
+Post-write observation adds no map I/O. The next normal locked poll consumes
+the edge before optional spatial I/O; docked repetitions cannot recreate it.
+Leaving docked, offline observation and unload discard pending edges. Startup
+docked with no preceding observation does not create an edge. The existing
+eligible predecessor states (cleaning/paused/returning/idle/error) are retained.
+Fresh failures use existing normal retry/backoff; no new scheduling mechanism,
+timer, task, request profile, marker logic or diagnostics. This proves a code
+mechanism, not the exact sequence of the private hardware run. Test pending.
 
 ## RC.16 — zero-cell marker projection fix
 

@@ -1,6 +1,12 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.16** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.17** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC.17 berücksichtigt bestätigte Activity auch aus dem Statusread nach Befehlen
+für die Docking-Erkennung. Eine dabei erkannte Docking-Kante wird einmal beim
+nächsten normalen Coordinator-Poll konsumiert, unabhängig vom Karten-Cache.
+Fehler verwenden weiterhin den normalen Backoff. Kein neuer Timer oder Task;
+FastPosition und RC.16-Markerprojektion bleiben unverändert. Hardwaretest offen.
 
 RC.16 trennt Rasterunterstützung zur Orientierung von der Markerprojektion:
 Bei sicherer Rotation darf eine gültige Position auch auf einem Nullpixel
@@ -231,7 +237,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.16** herunterladen (nicht main).
+   **0.2.0-rc.17** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.

@@ -132,12 +132,14 @@ class YeediCoordinator(DataUpdateCoordinator):
         self.spatial = {r.did: SpatialState() for r in robots}
         self.commands = {r.did: CommandState() for r in robots}
         self._observed = {}
-        self._map_activity = {}  # Poll observations only; independent of command guards.
+        self._map_activity = {}  # Observed status only; independent of command guards.
+        self._docking_refresh_pending = set()  # At most one edge per robot, RAM only.
         self.map_storage = MapStorage(hass, entry.entry_id)
         self.fast_positions = {r.did: FastPosition(self, r) for r in robots}
 
     async def async_shutdown(self):
         await asyncio.gather(*(poll.shutdown() for poll in self.fast_positions.values()))
+        self._docking_refresh_pending.clear()
         for state in self.spatial.values():
             state.orientation_evidence.clear()
             state.raw_refresh_probe = RawRefreshProbe()
@@ -181,6 +183,17 @@ class YeediCoordinator(DataUpdateCoordinator):
     def _remember(self, robot, snapshot):
         self._observed[robot.did] = (time.monotonic(), dict(snapshot))
         self.fast_positions[robot.did].observe(snapshot)
+        if snapshot.get("online"):
+            previous = self._map_activity.get(robot.did)
+            current = snapshot.get("activity")
+            if current == "docked" and previous in {"cleaning", "paused", "returning", "idle", "error"}:
+                self._docking_refresh_pending.add(robot.did)
+            elif current != "docked":
+                self._docking_refresh_pending.discard(robot.did)
+            self._map_activity[robot.did] = current
+        else:
+            self._map_activity.pop(robot.did, None)
+            self._docking_refresh_pending.discard(robot.did)
 
     def _already_done(self, robot, command, data):
         observed = self._observed.get(robot.did)
@@ -501,11 +514,9 @@ class YeediCoordinator(DataUpdateCoordinator):
                 base = await self.client.snapshot(robot)
             self._remember(robot, base)
             if base.get("online"):
-                previous = self._map_activity.get(robot.did)
-                current = base.get("activity")
-                docking = current == "docked" and previous in {"cleaning", "paused", "returning", "idle", "error"}
+                docking = robot.did in self._docking_refresh_pending
                 # Consume this edge before optional I/O; a failure is not another edge.
-                self._map_activity[robot.did] = current
+                self._docking_refresh_pending.discard(robot.did)
                 await self._spatial_refresh(robot, docking_refresh=docking)
             else:
                 self._map_activity.pop(robot.did, None)
