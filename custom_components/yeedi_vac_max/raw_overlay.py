@@ -78,6 +78,10 @@ class RawOverlay:
 
     def render(self, robot, dock, evidence=()):
         g = self.geometry
+        # Recover an empty legacy candidate set; never treat contradiction as
+        # a permanent proof that no future position can resolve orientation.
+        if not self.candidates:
+            self.candidates = {0, 90, 180, 270}
         # Evaluate the whole batch atomically. A contradictory batch must not
         # select the first matching point or resolve orientation by majority.
         plausible_evidence = {0, 90, 180, 270}
@@ -90,18 +94,20 @@ class RawOverlay:
         if narrowed:
             self.candidates = narrowed
         if len(self.candidates) > 1:
+            current = set(self.candidates)
             for position, tolerance in ((dock, 1), (robot, 0)):
                 plausible = {angle for angle in (0, 90, 180, 270)
                              if self._plausible(position, angle, tolerance)}
                 # No matching candidate is not evidence for any orientation.
                 # Ignore missing, invalid or wholly inconsistent observations.
                 if plausible:
-                    self.candidates.intersection_update(plausible)
-        if len(self.candidates) != 1:
-            return self.raw.png, "image/png"
-        angle = next(iter(self.candidates))
-        robot_xy = self._marker(robot, angle, 0)
-        dock_xy = self._marker(dock, angle, 1)
+                    current.intersection_update(plausible)
+            # Current observations are an atomic batch, like retained evidence.
+            # Conflicts cannot pick whichever observation happened to run first.
+            if current:
+                self.candidates = current
+        robot_xy = self._consensus_marker(robot, 0)
+        dock_xy = self._consensus_marker(dock, 1)
         if robot_xy is None and dock_xy is None:
             return self.raw.png, "image/png"
         radius = max(2, min(7, min(g.width, g.height) * .035))
@@ -120,6 +126,15 @@ class RawOverlay:
                          f'fill="#1677d2" stroke="#fff" stroke-width="{stroke:.3f}"/>')
         parts.append("</svg>")
         return "".join(parts).encode("utf-8"), "image/svg+xml"
+
+    def _consensus_marker(self, position, tolerance):
+        """Draw only if EVERY remaining angle yields the exact same valid point.
+
+        No angle selection, averaging, rounding equivalence or clamping.
+        A missing projection for even one candidate rejects this marker only.
+        """
+        points = {self._marker(position, angle, tolerance) for angle in self.candidates}
+        return next(iter(points)) if len(points) == 1 and None not in points else None
 
     def _plausible(self, position, angle, tolerance):
         point = source_position(position, self.raw.major, angle)

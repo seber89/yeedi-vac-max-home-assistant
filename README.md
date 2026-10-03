@@ -1,6 +1,13 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.14** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.15** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC.15 verbessert ausschließlich die RawMap-Markerauflösung: Widersprüchliche
+aktuelle Beobachtungen dürfen spätere gültige Positionen nicht dauerhaft sperren.
+Bei mehrdeutiger Rotation erscheint ein Marker nur, wenn alle verbleibenden
+Kandidaten exakt dieselbe gültige Bildposition ergeben. Fehlende Positionen
+werden nicht erfunden; die Karte bleibt sichtbar. Der bestehende 5-Sekunden-
+Positionspoll ist unverändert. Der Markerfix muss noch auf Hardware geprüft werden.
 
 RC.14 ist ausschließlich Diagnose: `raw_composition` zeigt abstrakt, ob die
 decodierten Pieces bereits leer sind oder Sichtbarkeit erst bei Raster/Crop
@@ -216,7 +223,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.14** herunterladen (nicht main).
+   **0.2.0-rc.15** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.

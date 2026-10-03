@@ -1,7 +1,25 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.14. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.15. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC.15 — original marker recovery and projection consensus
+
+Synthetic fail-first tests reproduce an empty candidate set after conflicting
+current robot/dock observations. This possibility also existed in RC.11; the
+RC.12 retained-angle rejection can re-enter that path. It is a proven code defect,
+not proof of the exact hardware cause. Current observations now intersect
+atomically, retaining the prior candidates on contradiction. Legacy empty sets
+recover for the next valid observation. Retained-angle validation remains intact.
+
+For each marker independently, all remaining candidates must yield the exact
+same valid projected point before drawing without a unique angle. No averaging,
+clamping, rounded equivalence or angle selection is used. Different projections
+remain hidden. Missing positions never generate markers. Existing position keys
+and listener updates already refresh the image immediately; FastPosition, its
+5-second cadence, decoder and map acquisition are unchanged. No new protocol
+facts, third-party implementation or production diagnostics were introduced.
+SavedMap-only still has no projection geometry. Hardware verification is pending.
 
 ## RC.14 — pixel visibility analysis, diagnostic only
 
