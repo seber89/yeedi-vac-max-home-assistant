@@ -51,6 +51,31 @@ class RawOverlay:
         self.candidates = {0, 90, 180, 270}
         self._encoded = base64.b64encode(raw.png).decode("ascii")
 
+    def check_retained_rotation(self, angle, robot, dock, evidence):
+        """True: dock anchors it; False: contradiction; None: no current anchor.
+
+        No clamping. Each usable current observation and the atomic evidence
+        intersection must still admit the previously geometry-proven angle.
+        """
+        if type(angle) is not int or angle not in (0, 90, 180, 270):
+            return None
+        for position, tolerance in ((dock, 1), (robot, 0)):
+            plausible = {a for a in (0, 90, 180, 270)
+                         if self._plausible(position, a, tolerance)}
+            if plausible and angle not in plausible:
+                return False
+        plausible_evidence = {0, 90, 180, 270}
+        for position in evidence:
+            plausible = {a for a in (0, 90, 180, 270)
+                         if self._plausible(position, a, 0)}
+            if plausible:
+                plausible_evidence.intersection_update(plausible)
+        if plausible_evidence and angle not in plausible_evidence:
+            return False
+        # Conservative post-docking reuse needs a current drawable dock anchor.
+        # Without it the ordinary RC11 evidence/current-position rules apply.
+        return True if self._marker(dock, angle, 1) is not None else None
+
     def render(self, robot, dock, evidence=()):
         g = self.geometry
         # Evaluate the whole batch atomically. A contradictory batch must not

@@ -1,6 +1,36 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.11** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.12** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC12 erhält eine auf echter RawMap-Geometrie eindeutig erkannte Rotation im
+bestehenden privaten RAM-State derselben bestätigten Map. RC11-Fahrmarker und
+deren Aktualisierung wurden vom Besitzer hardwarebestätigt. Der Dockmarker nach
+frischem Kartenaufbau bleibt der Hardwaretest für RC12.
+
+Ursache im RC11-Code: ein neues RawOverlay übernimmt Kandidaten nur bei exakt
+gleicher Major-Struktur einschließlich CRC-Liste. Neue Kartengeometrie kann
+behaltene Fahrpunkte erneut mehrdeutig machen; die vorherige eindeutige Rotation
+war außerhalb des alten Overlay-Objekts nicht gespeichert.
+
+RC12 verwendet die behaltene Rotation nur mit bestätigter identischer aktiver
+Map und einem aktuell plausibel projizierbaren Dock als Anker. Brauchbare aktuelle
+Roboterpositionen und die nichtleere gemeinsame Fahrpunkte-Evidenz dürfen ihr
+nicht widersprechen. Bei Widerspruch wird sie verworfen und die bestehende
+konservative Kandidatenprüfung erneut benutzt. Jeder Marker bleibt separat
+geometrisch geprüft; kein Clamping oder Korrigieren gelieferter Positionen.
+Ohne Dock-Anker gelten die bisherigen RC11-Regeln. Die Karte bleibt verfügbar,
+auch wenn kein Marker sicher möglich ist.
+
+Rotation und Evidenz bleiben RAM-only, werden bei bestätigtem Kartenwechsel und
+Unload gelöscht und gelangen weder in Storage, Logs noch Diagnostics. SavedMap
+bleibt ohne Overlay. Polling, Cloud, Decoder, Persistenz und Steuerung unverändert.
+
+Hardwaretest RC12: installieren, HA vollständig neu starten, Ausgangsdiagnose
+sichern. Normale Reinigung mit geschlossener Yeedi-App starten; nach 1–2 Minuten
+bewegten blauen Marker und Diagnose prüfen. Regulär zurückfahren/andocken lassen,
+ohne Neustart oder Reload dazwischen. Nach frischem RawMap-Aufbau prüfen, ob bei
+vorhandener Dockposition auch ohne Roboterposition ein plausibler orangener
+Dockmarker bleibt. Abschlussdiagnose sichern. RC12-Docking-Marker unbestätigt.
 
 RC11 testet ausschließlich begrenzte Orientierungsevidenz für die vorhandenen
 Roboter-/Dockmarker. RC10-Fast-Polling ist laut Besitzer auf dem Yeedi Vac Max
@@ -172,7 +202,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.11** herunterladen (nicht main).
+   **0.2.0-rc.12** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.

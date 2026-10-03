@@ -33,7 +33,8 @@ class YeediMapImage(YeediEntity, ImageEntity):
         if isinstance(state.image_map, RawMap):
             return ('raw', state.raw_map.major, id(state.raw_map),
                     state.robot_position, state.dock_position,
-                    state.orientation_evidence.points_for(state.raw_map.major.map_id))
+                    state.orientation_evidence.points_for(state.raw_map.major.map_id),
+                    state.orientation_evidence.rotation_for(state.raw_map.major.map_id))
         if state.image_map is not None:
             return ('saved', id(state.saved_map))
         if state.historical_image is not None:
@@ -66,8 +67,27 @@ class YeediMapImage(YeediEntity, ImageEntity):
                         self._raw_overlay = RawOverlay(state.raw_map)
                         if previous is not None and previous.raw.major == state.raw_map.major:
                             self._raw_overlay.candidates = set(previous.candidates)
+                    mid = state.raw_map.major.map_id
+                    trusted = (state.metadata_valid and state.active_map is not None
+                               and state.active_map.map_id == mid)
+                    retained = key[6] if trusted else None
+                    if retained is not None:
+                        check = self._raw_overlay.check_retained_rotation(
+                            retained, state.robot_position, state.dock_position, key[5])
+                        if check is False:
+                            state.orientation_evidence.forget_rotation(mid)
+                            self._raw_overlay.candidates = {0, 90, 180, 270}
+                        elif check is True:
+                            self._raw_overlay.candidates = {retained}
                     self._svg, self._attr_content_type = self._raw_overlay.render(
                         state.robot_position, state.dock_position, key[5])
+                    if (trusted and self._attr_content_type == 'image/svg+xml'
+                            and len(self._raw_overlay.candidates) == 1):
+                        state.orientation_evidence.confirm_rotation(
+                            mid, next(iter(self._raw_overlay.candidates)))
+                    # Retaining/invalidating rotation is an internal key change,
+                    # not a second cloud request or a listener/render loop.
+                    self._render_key = self._current_key()
                 except (ValueError, TypeError, OverflowError, AttributeError):
                     # Optional display markers must never hide a validated map.
                     self._svg = state.raw_map.png

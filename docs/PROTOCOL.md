@@ -879,6 +879,36 @@ Der reguläre Python-Client bietet in der geprüften Version keinen Yeedi-Login.
 
 Das ist eine experimentelle Umsetzung belegter Felder und kein Nachweis, dass die heutige Cloud mit dem Konto des Besitzers funktioniert. Die ältere Entscheidung in RESEARCH.md wurde durch die detailliertere Protokollprüfung und den ausdrücklichen Auftrag zur Implementierung überholt.
 
+## RC12: geometrisch bestätigte Rotation über RawMap-Neubau erhalten
+
+Keine neuen Protokollfakten. RC11 hielt erkannte Orientierung nur als Kandidaten
+des jeweiligen RawOverlay. ImageEntity übernimmt diese nur bei vollständiger
+Major-Gleichheit (einschließlich CRC-Generation). Ein synthetischer Regressionstest
+reproduziert den Verlust: während Fahrt eindeutige Rotation, nach frischer
+gleich-ID-Generation erneut mehrdeutige Evidenz und kein Dockmarker trotz dort
+plausibler Dockposition. Ohne private Hardwaregeometrie ist nicht belegt, ob die
+reale letzte Dockposition auf der gelieferten Karte plausibel projizierbar ist.
+
+OrientationEvidence hält zusätzlich höchstens eine feste Rotation 0/90/180/270.
+Sie wird ausschließlich nach eindeutigem RawOverlay-Ergebnis mit tatsächlich
+gezeichnetem, geometrisch plausiblem Marker und gültiger identischer aktiver Map
+gesetzt. Kein Winkel-a-Parsing, Mehrheitsentscheid, Clamping oder Persistieren.
+
+Beim Overlay-Update darf diese Rotation nur mit einer aktuell drawable Dockposition
+als konservativem Anker übernommen werden. Jede brauchbare aktuelle Robot-/Dock-
+Beobachtung sowie eine nichtleere atomare Fahrpunkte-Schnittmenge muss sie
+weiterhin zulassen. Widerspruch verwirft die gespeicherte Rotation und setzt die
+vier Kandidaten zurück; danach gelten reguläre RC11-Regeln. Fehlender/außerhalb
+liegender Anker erzwingt keinen Marker. Historische widersprüchliche Gruppen
+bleiben wie RC11 komplett ignoriert. Marker werden weiterhin einzeln gegen
+aktuelle Rastergeometrie einschließlich bestehender Docktoleranz geprüft.
+
+Map-ID-Wechsel und Unload löschen Punkte und Rotation gemeinsam. Keine Ausgabe
+in Diagnostics, keine Änderung am PNG-Storageformat. Image-Key berücksichtigt
+die RAM-Rotation und wird nach internem Bestätigen/Verwerfen synchronisiert, um
+kein stale Bild oder Listener-Loop zu erzeugen. Cloud-/Map-Acquisition, RC10-
+Polling, Steuerung und Home-Assistant-Automationen bleiben unverändert.
+
 ## RC11: begrenzte Orientierungsevidenz im RAM
 
 Keine neuen Protokollfakten oder Cloud-Requests. RC10-getPos-Fast-Polling wurde
