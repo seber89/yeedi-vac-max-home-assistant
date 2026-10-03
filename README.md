@@ -1,6 +1,12 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.12** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.13** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC.13 ergänzt ausschließlich privacy-safe RawMap-Refresh-Diagnose: begrenzte
+RAM-Zähler für Fresh-/Normalversuche, deren Ergebnisse und aktuelle
+Rückhaltebedingungen. Kein Scheduling- oder Funktionsfix; 180-Sekunden-Backoff,
+60-Sekunden-Coordinator und Positionspolling bleiben unverändert. Die Zähler
+werden beim Unload verworfen und niemals gespeichert.
 
 RC12 erhält eine auf echter RawMap-Geometrie eindeutig erkannte Rotation im
 bestehenden privaten RAM-State derselben bestätigten Map. RC11-Fahrmarker und
@@ -202,7 +208,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.12** herunterladen (nicht main).
+   **0.2.0-rc.13** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.

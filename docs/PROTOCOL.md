@@ -1,6 +1,6 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.7. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.13. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
 
 ## RC7 — modellgerechte Yeedi-Map-ID-Bestätigung
@@ -983,3 +983,42 @@ Portalantwort und Geräteantwort werden getrennt geprüft. Eine erfolgreiche HTT
 15 Sekunden je Anfrage, ein Wiederholungsversuch nur bei geeigneten lesenden Transportfehlern, keine unmittelbare Wiederholung nach Rate-Limit. Koordinator und Einrichtung sind zusätzlich zeitlich begrenzt. Keine Weiterleitung von Auth-Anfragen auf andere Hosts (Redirects deaktiviert). Cloud-Ausnahmen werden durch neutrale Meldungen ersetzt. Polling und Steuerung werden serialisiert; mehrere Geräte teilen eine Authentifizierung.
 
 Login und Basissteuerung von 0.1.0 sind laut Besitzer funktionsfähig. Live unbestätigt bleiben neue Raum-/Positionsantworten, neue Bestätigungslogik und Tokenablauf nach mehreren Tagen. Fehlschläge sollen anhand bereinigter Kategorien korrigiert werden, nicht durch blindes Probieren anderer Herstellerkonten.
+## RC.13: RawMap refresh observations (diagnostic only)
+
+The existing `_poll_robot` consumes a positively observed docking edge once.
+`_spatial_refresh` checks metadata validity and `next_raw_refresh`; `_raw_refresh`
+keeps an existing background during cleaning/paused/returning, unless fresh.
+A failed build retains the last good image and schedules another attempt after
+180 seconds. `raw_valid_until` does not control these acquisition decisions or
+last-good image availability. None of these rules changes in RC.13.
+
+The new `raw_refresh` diagnostics contain saturated RAM counters (maximum 9),
+exported only as `0`, `1`, `2-3`, `4-8`, `>8`: attempt, success, failure, normal
+attempt and fresh attempt buckets. `raw_refresh_last_mode` is `never`, `normal`
+or `fresh`. `raw_refresh_last_result` and `raw_refresh_last_fresh_result` allow
+only `never`, `success`, `no_visible_pixels`, `map_changed`, `generation_changed`,
+`major_initial`, `piece_download`, `piece_decode`, `raster_assembly`,
+`png_generation`, `timeout`, `cloud_error`, `unexpected`. Loader-internal errors
+already reduced to a build stage stay that stage; exception categories are only
+reported when observed by the coordinator, never inferred from message text.
+
+`raw_refresh_last_decision` records `never`, `attempted`,
+`skipped_invalid_metadata`, `skipped_no_active_map`, `skipped_not_due` or
+`skipped_activity_hold`, without overwriting the last attempt result.
+`raw_refresh_due` means the existing raw refresh deadline has elapsed;
+`raw_refresh_backoff_active` means a failed attempt's deadline is still pending.
+`raw_refresh_current_hold` describes the normal path's current prerequisite:
+`none`, `invalid_metadata`, `no_active_map`, `activity_hold`, `backoff` or
+`cache_interval`. A fresh docking edge and a full metadata refresh retain their
+existing behavior; these fields do not introduce a new scheduling gate.
+
+Normal builds can reuse validated pieces (or the complete prior RawMap) when
+MajorMap generation is unchanged. Consequently `success` means the existing
+acquisition path returned a valid RawMap, not necessarily new downloads or a
+visually changed image. An unchanged displayed map alone cannot establish that
+no refresh occurred. No deterministic permanently blocked retry was identified
+for valid metadata in the docked state; hardware observations are still needed.
+
+All observations reset on unload; no IDs, coordinates, payloads, URLs, exact
+times, exception texts or persistent diagnostic data are added. No requests
+are made by diagnostics. RC.13 is not a functional fix.

@@ -28,7 +28,38 @@ MAX_PENDING = 4
 
 
 @dataclass(repr=False)
+class RawRefreshProbe:
+    """Bounded RAM-only observations; never controls acquisition decisions."""
+    attempts: int = 0
+    successes: int = 0
+    failures: int = 0
+    normal_attempts: int = 0
+    fresh_attempts: int = 0
+    last_result: str = 'never'
+    last_fresh_result: str = 'never'
+    last_mode: str = 'never'
+    decision: str = 'never'
+    error_backoff: bool = False
+
+    def begin(self, fresh):
+        self.error_backoff = False
+        self.attempts = min(9, self.attempts + 1)
+        key = 'fresh_attempts' if fresh else 'normal_attempts'
+        setattr(self, key, min(9, getattr(self, key) + 1))
+        self.last_mode = 'fresh' if fresh else 'normal'
+        self.decision = 'attempted'
+
+    def finish(self, result, fresh):
+        self.last_result = result
+        if fresh:
+            self.last_fresh_result = result
+        key = 'successes' if result == 'success' else 'failures'
+        setattr(self, key, min(9, getattr(self, key) + 1))
+
+
+@dataclass(repr=False)
 class SpatialState:
+    raw_refresh_probe: RawRefreshProbe = field(default_factory=RawRefreshProbe)
     orientation_evidence: OrientationEvidence = field(default_factory=OrientationEvidence)
     maps: tuple[YeediMap, ...] = ()
     active_map: YeediMap | None = None
@@ -109,6 +140,7 @@ class YeediCoordinator(DataUpdateCoordinator):
         await asyncio.gather(*(poll.shutdown() for poll in self.fast_positions.values()))
         for state in self.spatial.values():
             state.orientation_evidence.clear()
+            state.raw_refresh_probe = RawRefreshProbe()
         await super().async_shutdown()
 
     async def async_load_saved_maps(self):
@@ -223,6 +255,11 @@ class YeediCoordinator(DataUpdateCoordinator):
             if state.metadata_valid and state.active_map and (
                     docking_refresh or time.monotonic() >= state.next_raw_refresh):
                 await self._raw_refresh(robot, fresh=docking_refresh)
+            else:
+                state.raw_refresh_probe.decision = (
+                    'skipped_invalid_metadata' if not state.metadata_valid else
+                    'skipped_no_active_map' if state.active_map is None else
+                    'skipped_not_due')
             return
         state.metadata_valid = False
         state.rooms_valid = False
@@ -239,6 +276,7 @@ class YeediCoordinator(DataUpdateCoordinator):
             state.metadata_valid = True
             self.async_update_listeners()
             if selected is None:
+                state.raw_refresh_probe.decision = 'skipped_no_active_map'
                 state.rooms = ()
                 state.next_map_refresh = time.monotonic() + MAP_INTERVAL
                 return
@@ -253,12 +291,17 @@ class YeediCoordinator(DataUpdateCoordinator):
             # Retain cache but mark stale; future room commands must require validity.
         if state.metadata_valid and state.active_map is not None:
             await self._raw_refresh(robot, fresh=docking_refresh)
+        else:
+            state.raw_refresh_probe.decision = (
+                'skipped_invalid_metadata' if not state.metadata_valid else 'skipped_no_active_map')
 
     async def _raw_refresh(self, robot, *, fresh=False):
         """Optional image state, independent of rooms and controls."""
         state = self.spatial[robot.did]
         selected = state.active_map
         if selected is None or not state.metadata_valid:
+            state.raw_refresh_probe.decision = (
+                'skipped_no_active_map' if selected is None else 'skipped_invalid_metadata')
             return
         same_map = ((state.raw_map is not None and state.raw_map.major.map_id == selected.map_id)
                     or (state.saved_map is not None and state.saved_map.map_id == selected.map_id))
@@ -266,7 +309,11 @@ class YeediCoordinator(DataUpdateCoordinator):
                 and self._map_activity.get(robot.did) in {"cleaning", "paused", "returning"}):
             # Keep the complete background, not a transient cleaning fragment.
             state.raw_valid_until = max(state.raw_valid_until, time.monotonic() + MAP_INTERVAL)
+            state.raw_refresh_probe.decision = 'skipped_activity_hold'
             return
+        probe = state.raw_refresh_probe
+        probe.begin(fresh)
+        observed_error = None
         status = safe_status()
         state.raw_status = status
         try:
@@ -283,8 +330,11 @@ class YeediCoordinator(DataUpdateCoordinator):
                 # RC.8 is read-only. Retained RC.7 write helper has no automatic caller.
                 await self._clean_log_fallback(robot, selected)
         except MapChanged:
+            observed_error = 'generation_changed'
             result = None
-        except Exception:
+        except Exception as error:
+            observed_error = ('timeout' if isinstance(error, (CommandTimeout, TimeoutError)) else
+                              'cloud_error' if isinstance(error, CloudError) else 'unexpected')
             # No logging: an unexpected exception might contain private data.
             status['failure_stage'] = 'unexpected'
             result = None
@@ -293,6 +343,7 @@ class YeediCoordinator(DataUpdateCoordinator):
                 await self._confirm_image_map(state, robot, state.active_map)
             state.raw_status = safe_status()
             state.raw_status['failure_stage'] = 'generation_changed'
+            probe.finish('map_changed', fresh)
             return
         now = time.monotonic()
         if isinstance(result, RawMap) and result.major.map_id == selected.map_id:
@@ -304,8 +355,11 @@ class YeediCoordinator(DataUpdateCoordinator):
                 state.has_persisted_map = True
             state.raw_valid_until = now + MAP_INTERVAL + MAP_ERROR_BACKOFF
             state.next_raw_refresh = now + MAP_INTERVAL
+            probe.finish('success', fresh)
         else:
+            probe.finish(observed_error or status.get('failure_stage', 'unexpected'), fresh)
             state.next_raw_refresh = now + MAP_ERROR_BACKOFF
+            probe.error_backoff = True
             if fresh and same_map:
                 state.raw_valid_until = max(state.raw_valid_until, now + MAP_ERROR_BACKOFF)
             else:
