@@ -110,6 +110,8 @@ class FastPosition:
                     return
                 state = self.coordinator.spatial[self.robot.did]
                 state.robot_position, state.dock_position = robot_pos, dock_pos
+                if state.metadata_valid and state.active_map:
+                    state.orientation_evidence.record(state.active_map.map_id, robot_pos)
                 self.last_result = 'success' if robot_pos is not None else 'missing_position'
                 self.successes = min(33, self.successes + 1)
                 self.rate_limited = False

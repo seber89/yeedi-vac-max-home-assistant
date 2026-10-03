@@ -51,8 +51,19 @@ class RawOverlay:
         self.candidates = {0, 90, 180, 270}
         self._encoded = base64.b64encode(raw.png).decode("ascii")
 
-    def render(self, robot, dock):
+    def render(self, robot, dock, evidence=()):
         g = self.geometry
+        # Evaluate the whole batch atomically. A contradictory batch must not
+        # select the first matching point or resolve orientation by majority.
+        plausible_evidence = {0, 90, 180, 270}
+        for position in evidence:
+            plausible = {angle for angle in (0, 90, 180, 270)
+                         if self._plausible(position, angle, 0)}
+            if plausible:
+                plausible_evidence.intersection_update(plausible)
+        narrowed = self.candidates & plausible_evidence
+        if narrowed:
+            self.candidates = narrowed
         if len(self.candidates) > 1:
             for position, tolerance in ((dock, 1), (robot, 0)):
                 plausible = {angle for angle in (0, 90, 180, 270)

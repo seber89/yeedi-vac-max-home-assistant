@@ -32,7 +32,8 @@ class YeediMapImage(YeediEntity, ImageEntity):
         state = self.coordinator.spatial[self.robot.did]
         if isinstance(state.image_map, RawMap):
             return ('raw', state.raw_map.major, id(state.raw_map),
-                    state.robot_position, state.dock_position)
+                    state.robot_position, state.dock_position,
+                    state.orientation_evidence.points_for(state.raw_map.major.map_id))
         if state.image_map is not None:
             return ('saved', id(state.saved_map))
         if state.historical_image is not None:
@@ -48,7 +49,7 @@ class YeediMapImage(YeediEntity, ImageEntity):
         key = self._current_key()
         if key != self._render_key:
             self._render_key = key
-            raw = key is not None and len(key) == 5 and key[0] == 'raw' and state.raw_map is not None
+            raw = key is not None and key[0] == 'raw' and state.raw_map is not None
             self._attr_content_type = 'image/png' if raw else 'image/svg+xml'
             if key is not None and key[0] == 'saved':
                 self._raw_overlay = None
@@ -66,7 +67,7 @@ class YeediMapImage(YeediEntity, ImageEntity):
                         if previous is not None and previous.raw.major == state.raw_map.major:
                             self._raw_overlay.candidates = set(previous.candidates)
                     self._svg, self._attr_content_type = self._raw_overlay.render(
-                        state.robot_position, state.dock_position)
+                        state.robot_position, state.dock_position, key[5])
                 except (ValueError, TypeError, OverflowError, AttributeError):
                     # Optional display markers must never hide a validated map.
                     self._svg = state.raw_map.png

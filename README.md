@@ -1,6 +1,33 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.10** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.11** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC11 testet ausschließlich begrenzte Orientierungsevidenz für die vorhandenen
+Roboter-/Dockmarker. RC10-Fast-Polling ist laut Besitzer auf dem Yeedi Vac Max
+hardwarebestätigt: erfolgreiche getPos-Reads während Reinigung und Rückfahrt,
+sauberes Ende nach beobachtetem Andocken. Die Marker-Erkennung von RC11 muss
+noch auf Hardware geprüft werden.
+
+Während beobachtetem cleaning/returning bleiben maximal 16 unterschiedliche,
+valide Roboterpositionen im RAM, gebunden an die bestätigte aktive Map-ID.
+Keine Winkelinterpretation, Zeitstempel, Fahrtlinie oder Speicherung auf Platte.
+Die Punkte bleiben bis nach dem Andocken für eine neu geladene echte RawMap
+nutzbar; bestätigter Map-Wechsel und Unload verwerfen sie.
+
+Für jede neue RawMap-Generation werden die Punkte gegen die vorhandenen vier
+Rotationen geprüft. Nur eine eindeutige gemeinsame Schnittmenge erlaubt Marker;
+mehrdeutige oder widersprüchliche Evidenz erzwingt keine Rotation. Auch danach
+muss jeder aktuelle Robot-/Dockmarker auf belegter Geometrie plausibel sein.
+Ein reines SavedMap-PNG erhält weiterhin kein Overlay. RC11 ergänzt keine
+Cloud-Abfragen; getPos bleibt bei etwa fünf Sekunden während aktiver Zustände,
+der normale Coordinator bei 60 Sekunden. Diagnostics exportieren keine Evidenz.
+
+Hardwaretest: RC11 installieren, HA vollständig neu starten, normale Reinigung
+mit geschlossener Yeedi-App durchführen und regulär zurückfahren/andocken lassen.
+Nach dem frischen RawMap-Aufbau prüfen, ob Robot-/Dockmarker sichtbar und
+plausibel sind. Nur eine gespeicherte PNG-Karte oder weiterhin mehrdeutige
+Orientierung kann weiterhin ohne Marker erscheinen. Diagnose vor Reinigung,
+während Reinigung und nach dem Andocken herunterladen.
 
 RC10 ergänzt ausschließlich Position-only Fast Polling: bei beobachtetem
 `cleaning` oder `returning` etwa alle fünf Sekunden nur `getPos`.
@@ -22,7 +49,8 @@ Rotation projizierbar. Ein reines persistiertes Last-Good-PNG enthält dafür
 keine Geometrie: Fast-Poll kann laufen, ohne dass ein Punkt angezeigt wird.
 Keine Pieces/Transformationsdaten werden dafür zusätzlich gespeichert.
 Kein MQTT, keine neuen Kartenabfragen, keine Overlay-/Decoderänderung.
-RC10-Markerbewegung muss erst durch einen echten Reinigungslauf bestätigt werden.
+RC10-Fast-Poll ist hardwarebestätigt; sichtbare Marker benötigen weiterhin
+eine sichere RawMap-Projektion.
 
 Hardwaretest: RC10 installieren, HA vollständig neu starten, Diagnose prüfen,
 Reinigung starten und Yeedi-App geschlossen lassen. Nach 1–2 Minuten Karte
@@ -144,7 +172,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.10** herunterladen (nicht main).
+   **0.2.0-rc.11** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.

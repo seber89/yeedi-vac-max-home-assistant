@@ -879,6 +879,36 @@ Der reguläre Python-Client bietet in der geprüften Version keinen Yeedi-Login.
 
 Das ist eine experimentelle Umsetzung belegter Felder und kein Nachweis, dass die heutige Cloud mit dem Konto des Besitzers funktioniert. Die ältere Entscheidung in RESEARCH.md wurde durch die detailliertere Protokollprüfung und den ausdrücklichen Auftrag zur Implementierung überholt.
 
+## RC11: begrenzte Orientierungsevidenz im RAM
+
+Keine neuen Protokollfakten oder Cloud-Requests. RC10-getPos-Fast-Polling wurde
+vom Besitzer auf 04z443 hardwarebestätigt. RC11 prüft ausschließlich, ob dessen
+Fahrpositionen die bereits vorhandenen 0/90/180/270-Kandidaten eindeutig
+einschränken können, wenn nach dem Andocken eine echte RawMap verfügbar wird.
+
+Je Roboter hält der SpatialState höchstens 16 deduplizierte x/y-Punkte ohne
+Winkel und Zeitstempel, nur aus erfolgreichen Positionsreads bei beobachtetem
+cleaning/returning und gültiger aktiver Map. Die exakt validierte Map-ID bindet
+den privaten RAM-Puffer. Ein positiv bestätigter ID-Wechsel verwirft alte Punkte;
+temporäre Metadatenfehler sammeln keine neuen Punkte, löschen aber die vorhandene
+gleich gebundene Evidenz nicht. Shutdown wartet bestehende Fast-Tasks ab und
+leert danach den Puffer. Weder Store noch Diagnostics erhalten diese Daten.
+
+RawOverlay prüft pro Punkt dieselbe bestehende Transformation mit major.pixel,
+Rastermittelpunkt und vier rechtwinkligen Rotationen gegen tatsächliche nonzero
+Rasterzellen. Vollständig unplausible Punkte sind keine Orientierungsevidenz.
+Die Schnittmenge der brauchbaren Punkte wird atomar angewendet: ist sie leer,
+wird die ganze Gruppe ignoriert, ohne Mehrheitsentscheidung. Eine nichtleere
+Schnittmenge schränkt die vorhandenen Kandidaten ein; nur ein einzelner Kandidat
+erlaubt Marker. Aktuelle Robot-/Dock-Plausibilität einschließlich bestehender
+Dock-Randtoleranz bleibt maßgeblich. Neue RawMap-Generationen prüfen die
+gleich-map-gebundene Evidenz erneut. SavedMap-Bilder bleiben ohne Projektion.
+
+Die Image-Identität berücksichtigt zusätzlich den begrenzten Evidenzsatz, sodass
+neu gewonnene Evidenz ein Overlay aktualisieren kann, ohne PNG/RawMap neu zu
+decodieren. Keine zusätzliche Polling-, Transport-, Decoder-, Persistenz- oder
+Steuerungslogik. RC11-Markerverhalten bleibt bis zum Hardwaretest unbestätigt.
+
 ## Nachvollziehbare Referenzen
 
 - [ecovacs-deebot.js, f1ae56e](https://github.com/mrbungle64/ecovacs-deebot.js/tree/f1ae56e69d409c5e02f72d4ea313024aa146363e): `index.js`, `library/constants.js`, `library/command.js`, `library/commands/clean.js`, `library/commands/movement.js`, `library/dictionary.js`, `library/models.js`, `library/capabilityTypes.js`.

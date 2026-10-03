@@ -16,6 +16,7 @@ from .raw_map import RawMap, MapChanged, safe_status
 from .map_storage import MapStorage, SavedMap
 from .clean_log_map import HistoricalMap, CleanLogError, safe_probe
 from .fast_position import FastPosition
+from .orientation_evidence import OrientationEvidence
 
 _LOGGER = logging.getLogger(__name__)
 MAP_INTERVAL = 3600
@@ -28,6 +29,7 @@ MAX_PENDING = 4
 
 @dataclass(repr=False)
 class SpatialState:
+    orientation_evidence: OrientationEvidence = field(default_factory=OrientationEvidence)
     maps: tuple[YeediMap, ...] = ()
     active_map: YeediMap | None = None
     rooms: tuple[YeediRoom, ...] = ()
@@ -105,6 +107,8 @@ class YeediCoordinator(DataUpdateCoordinator):
 
     async def async_shutdown(self):
         await asyncio.gather(*(poll.shutdown() for poll in self.fast_positions.values()))
+        for state in self.spatial.values():
+            state.orientation_evidence.clear()
         await super().async_shutdown()
 
     async def async_load_saved_maps(self):
@@ -117,6 +121,7 @@ class YeediCoordinator(DataUpdateCoordinator):
         """Only a positively identified different map invalidates a last-good image."""
         if selected is None or identifier(selected.map_id) != selected.map_id or selected.map_id == '0':
             return
+        state.orientation_evidence.bind(selected.map_id)
         if state.clean_log_map and state.clean_log_map.map_id != selected.map_id:
             state.clean_log_map = None
             state.clean_log_probe['clean_log_fallback_active'] = False
@@ -210,6 +215,8 @@ class YeediCoordinator(DataUpdateCoordinator):
                 self.fast_positions[robot.did].note_normal_read()
                 async with asyncio.timeout(8):
                     state.robot_position, state.dock_position = await self.client.positions(robot)
+                if self.fast_positions[robot.did].wanted and state.metadata_valid and state.active_map:
+                    state.orientation_evidence.record(state.active_map.map_id, state.robot_position)
         except (CloudError, TimeoutError):
             state.robot_position = state.dock_position = None
         if not force and time.monotonic() < state.next_map_refresh:
