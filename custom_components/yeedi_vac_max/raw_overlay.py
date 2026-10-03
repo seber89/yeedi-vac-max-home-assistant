@@ -137,6 +137,7 @@ class RawOverlay:
         return next(iter(points)) if len(points) == 1 and None not in points else None
 
     def _plausible(self, position, angle, tolerance):
+        """Positive raster support for orientation evidence, not occupancy proof."""
         point = source_position(position, self.raw.major, angle)
         if point is None:
             return False
@@ -150,10 +151,19 @@ class RawOverlay:
                    for px in range(max(0, ix-tolerance), min(side, ix+tolerance+1)))
 
     def _marker(self, position, angle, tolerance):
-        if not self._plausible(position, angle, tolerance):
+        # A zero cell is missing map data, not proof of an impossible position.
+        # Orientation is resolved separately; final projection uses bounds only.
+        point = source_position(position, self.raw.major, angle)
+        if point is None:
             return None
-        x, y = source_position(position, self.raw.major, angle)
+        x, y = point
+        side = self.raw.major.side
+        if not (0 <= x < side and 0 <= y < side):
+            return None
         g = self.geometry
+        if not (g.left-tolerance <= x < g.left+g.visible_width+tolerance
+                and g.top-tolerance <= y < g.top+g.visible_height+tolerance):
+            return None
         # Dock tolerance may extend one source cell into the existing padding.
         px, py = (x-g.left+g.padding)*g.scale, (y-g.top+g.padding)*g.scale
         return (px, py) if 0 <= px < g.width and 0 <= py < g.height else None

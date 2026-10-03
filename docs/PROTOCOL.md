@@ -1,7 +1,27 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.15. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.16. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC.16 — zero-cell marker projection fix
+
+The existing palette represents zero as no map data/background, not a proven
+occupancy prohibition. Fail-first synthetic tests show the final `_marker`
+rejected interior zero cells even after a uniquely resolved angle, making a
+nonzero -> zero -> nonzero movement lose its marker. The same check prevented
+a retained angle from finding a drawable dock anchor in a zero-cell interior.
+This reproduces the mechanism, not the private hardware geometry itself.
+
+Final projection now validates finite coordinates, the chosen quarter turn,
+full Major bounds, crop bounds and display bounds independently of cell value.
+Dock crop tolerance remains limited to one source cell; no clamping occurs.
+Positive raster support still narrows orientation candidates and detects
+retained-angle contradictions conservatively. A missing raster sample alone
+does not invalidate a drawable marker under an already resolved angle.
+RC.15 atomic candidate handling and exact multi-angle projection consensus
+remain unchanged. No new protocol facts, cloud requests, telemetry or position
+persistence. FastPosition and all map/control pipelines remain unchanged.
+Hardware confirmation is pending.
 
 ## RC.15 — original marker recovery and projection consensus
 
