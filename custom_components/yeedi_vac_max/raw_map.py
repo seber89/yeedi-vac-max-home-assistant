@@ -145,16 +145,22 @@ def assemble(major, pieces):
     return bytes(raster)
 
 
-def render_png(major, pieces):
+def render_png(major, pieces, probe=None):
     """Small original indexed PNG writer; no metadata, IDs or external assets."""
     try:
+        if probe is not None:
+            probe['composition_attempted'] = True
         raster = assemble(major, pieces)
     except Exception:
         raise MapRenderError('raster_assembly') from None
-    if not any(raster):
+    visible = any(raster)
+    if probe is not None:
+        probe.update(composition_canvas_valid=True,
+                     composition_has_visible_pixels_before_crop=visible)
+    if not visible:
         raise MapRenderError('no_visible_pixels', True)
     try:
-        return _encode_png(raster, major.side)
+        return _encode_png(raster, major.side, probe)
     except Exception:
         raise MapRenderError('png_generation', True) from None
 
@@ -227,8 +233,10 @@ def _display_raster(raster, side):
     return output_width, output_height, b''.join(rows)
 
 
-def _encode_png(raster, side):
+def _encode_png(raster, side, probe=None):
     width, height, display = _display_raster(raster, side)
+    if probe is not None:
+        probe['composition_has_visible_pixels_after_crop'] = any(display)
     scanlines = b''.join(b'\0' + display[y * width:(y + 1) * width]
                          for y in range(height))
 
@@ -255,4 +263,21 @@ def safe_status():
                 required_piece_count_bucket='0', loaded_piece_count_bucket='0',
                 decoded_piece_count_bucket='0', decode_failures_bucket='0', image_generated=False,
                 generation_verified=False, render_attempted=False, raster_assembled=False,
-                failure_stage='none')
+                failure_stage='none', raw_visibility=safe_visibility())
+
+
+def visibility_bucket(count):
+    return ('0' if not count else '1' if count == 1 else '2-3' if count <= 3 else
+            '4-8' if count <= 8 else '9-32' if count <= 32 else '33-64' if count <= 64 else '>64')
+
+
+def safe_visibility():
+    """Fixed abstract observations only; no raw bytes or private identities."""
+    return dict(pieces_checked_bucket='0', pieces_with_visible_pixels_bucket='0',
+                pieces_without_visible_pixels_bucket='0', source_piece_nonempty_bucket='0',
+                decoded_piece_visible_bucket='0', decoded_piece_empty_bucket='0',
+                reused_piece_bucket='0', freshly_loaded_piece_bucket='0',
+                composition_attempted=False, composition_canvas_valid=False,
+                composition_has_visible_pixels_before_crop=False,
+                composition_has_visible_pixels_after_crop=False,
+                composition_result='not_attempted')

@@ -22,6 +22,7 @@ from .clean_log_map import CleanLogError, latest_image_url, download_png
 from .const import TARGET_CLASS_ID
 from .raw_map import RawMap, MapFormatError, MapChanged, parse_major, decode_piece, render_png, count_bucket
 from .raw_map import MapRenderError
+from .raw_map import safe_visibility, visibility_bucket
 from .map_data import (YeediMap, YeediRoom, RobotPosition, DockPosition,
                        identifier, position, polygon, fallback_name)
 
@@ -440,6 +441,8 @@ class YeediClient:
             status['failure_stage'] = 'major_initial'
             return None
         loaded = decoded = failures = 0
+        source_nonempty = decoded_visible = decoded_empty = reused = 0
+        visibility = status['raw_visibility'] = safe_visibility()
         tasks = []
         stage = 'major_initial'
         try:
@@ -459,18 +462,27 @@ class YeediClient:
                     for index in major.required:
                         if previous.major.crcs[index] == major.crcs[index]:
                             pieces[index] = previous.pieces[index]
+                            if pieces[index] is not None:
+                                reused += 1
                 pending = iter(i for i in major.required if pieces[i] is None)
                 stage = 'piece_download'
 
                 async def worker():
-                    nonlocal loaded, decoded, failures
+                    nonlocal loaded, decoded, failures, source_nonempty, decoded_visible, decoded_empty
                     for index in pending:
                         response = await self.command(robot, 'getMinorMap', {
                             'mid': map_id, 'pieceIndex': index, 'type': 'ol'})
                         loaded += 1
+                        data = response.get('data')
+                        if isinstance(data, dict) and isinstance(data.get('pieceValue'), str) and data['pieceValue']:
+                            source_nonempty += 1
                         try:
                             pieces[index] = await asyncio.to_thread(decode_piece, response.get('data'), major, index)
                             decoded += 1
+                            if any(pieces[index]):
+                                decoded_visible += 1
+                            else:
+                                decoded_empty += 1
                         except MapFormatError:
                             failures += 1
                             status['failure_stage'] = 'piece_decode'
@@ -488,20 +500,29 @@ class YeediClient:
                 if parse_major(verify.get('data'), map_id) != major:
                     raise MapChanged('Map changed during build')
                 status['generation_verified'] = True
+                checked = [pieces[i] for i in major.required if isinstance(pieces[i], bytes)]
+                visible_count = sum(any(piece) for piece in checked)
+                visibility.update(pieces_checked_bucket=visibility_bucket(len(checked)),
+                    pieces_with_visible_pixels_bucket=visibility_bucket(visible_count),
+                    pieces_without_visible_pixels_bucket=visibility_bucket(len(checked) - visible_count))
                 if compatible and previous.major == major:
+                    visibility['composition_result'] = 'reused_image'
                     result = previous
                 else:
                     status['render_attempted'] = True
                     stage = 'png_generation'
-                    png = await asyncio.to_thread(render_png, major, tuple(pieces))
+                    png = await asyncio.to_thread(render_png, major, tuple(pieces), visibility)
+                    visibility['composition_result'] = 'success'
                     status['raster_assembled'] = True
                     result = RawMap(major, tuple(pieces), png)
                 status.update(available=True, complete=True, image_generated=True, failure_stage='none')
                 return result
         except MapChanged:
+            visibility['composition_result'] = 'generation_changed'
             status['failure_stage'] = 'generation_changed'
             raise
         except MapRenderError as err:
+            visibility['composition_result'] = err.stage
             status.update(failure_stage=err.stage, raster_assembled=err.assembled)
             return None
         except (CloudError, TimeoutError, MapFormatError, TypeError, OverflowError):
@@ -520,6 +541,11 @@ class YeediClient:
             status['loaded_piece_count_bucket'] = count_bucket(loaded)
             status['decoded_piece_count_bucket'] = count_bucket(decoded)
             status['decode_failures_bucket'] = count_bucket(failures)
+            visibility.update(source_piece_nonempty_bucket=visibility_bucket(source_nonempty),
+                decoded_piece_visible_bucket=visibility_bucket(decoded_visible),
+                decoded_piece_empty_bucket=visibility_bucket(decoded_empty),
+                reused_piece_bucket=visibility_bucket(reused),
+                freshly_loaded_piece_bucket=visibility_bucket(loaded))
 
     async def rooms(self, robot: Robot, map_id: str) -> tuple[YeediRoom, ...]:
         body = await self.command(robot, "getMapSet", {"mid": map_id, "type": "ar"})

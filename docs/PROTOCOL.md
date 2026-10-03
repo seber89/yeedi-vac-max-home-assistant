@@ -1,7 +1,59 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.13. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.14. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC.14 — pixel visibility analysis, diagnostic only
+
+Actual path: `YeediClient.load_raw_map` strictly reads Major metadata, then each
+required MinorMap's `body.data` with matching mid/type/integer pieceIndex.
+`decode_piece` validates canonical Base64, the 9-byte legacy LZMA header,
+dictionary limit, exact decompressed size, EOF and absence of trailing data.
+The output is one palette byte per cell, NOT a PNG/RGB/RGBA/LA image. There is
+no alpha mask, image-mode conversion, external offset or compositing stage.
+Negative/non-square dimensions are rejected rather than guessed.
+
+`assemble` maps each required column-major piece into a bounded square raster,
+flips Y and converts palette classes. Zero stays zero; ALL nonzero values stay
+nonzero (including neutral 5–10). `render_png` raises `no_visible_pixels` exactly
+when `any(raster)` is false, AFTER assembly but BEFORE crop/padding/scaling/PNG.
+`_display_raster` crops nonzero bounds and only enlarges; indexed PNG has no
+transparency chunk. Synthetic tests cover all 256 palette bytes, edge cells,
+mixed zero/visible pieces and actual generated PNG scanlines. No reproducible
+pixel-loss bug was demonstrated. RC.14 makes no functional fix.
+
+The second Major read verifies identical map, dimensions, resolution and CRC
+generation before publication. Normal loads reuse a slot only for compatible
+map/dimensions/resolution and identical per-slot declared CRC. An identical
+Major can return the prior complete image; fresh loads pass no previous map.
+The private Yeedi CRC algorithm is not independently verified/implemented.
+Thus identical declared CRCs are a cache contract, not proof that the cloud
+will always return identical payloads. Tests explicitly distinguish this from
+a changed CRC, which downloads only the changed slot. No cache policy changes.
+
+`raw_composition` exports only RAM observations from the existing reads/build:
+`pieces_checked_bucket`, `pieces_with_visible_pixels_bucket`,
+`pieces_without_visible_pixels_bucket` (after generation verification),
+`source_piece_nonempty_bucket` (nonempty encoded string, NOT visible pixels),
+`decoded_piece_visible_bucket`, `decoded_piece_empty_bucket` (new successful
+decodes), `reused_piece_bucket`, `freshly_loaded_piece_bucket` (received replies).
+Buckets: `0`, `1`, `2-3`, `4-8`, `9-32`, `33-64`, `>64`.
+Booleans: `composition_attempted`, `composition_canvas_valid`,
+`composition_has_visible_pixels_before_crop`,
+`composition_has_visible_pixels_after_crop`. False may mean not reached;
+interpret alongside `composition_result`: `not_attempted`, `reused_image`,
+`success`, `generation_changed`, `raster_assembly`, `no_visible_pixels`,
+`png_generation`. A reused image does not pretend a new composition occurred.
+
+`raw_map.available/complete` describe last-good image availability, possibly
+persisted; `image_generated/failure_stage` describe the latest acquisition.
+Successful decode only proves a valid exact-size byte sequence, which may be
+entirely zero. A visible persisted image does not prove a successful live build.
+These new observations add no requests or persistence, contain no identifiers,
+bytes, coordinates, hashes, exact sizes/times, URLs or exception texts, and
+replace the previous build's observations rather than accumulating history.
+Existing RC.13 refresh observations, scheduling, polling, controls, storage,
+orientation, CleanLog and HTTPS/TLS remain unchanged; no MQTT is introduced.
 
 ## RC7 — modellgerechte Yeedi-Map-ID-Bestätigung
 

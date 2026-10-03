@@ -1,6 +1,14 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.13** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.14** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC.14 ist ausschließlich Diagnose: `raw_composition` zeigt abstrakt, ob die
+decodierten Pieces bereits leer sind oder Sichtbarkeit erst bei Raster/Crop
+verloren geht, und unterscheidet neu geladene Pieces von Cache-Wiederverwendung.
+Kein reproduzierbarer Pixelverlust im Code nachgewiesen; kein Funktionsfix.
+Keine zusätzlichen Cloud-Abfragen oder Speicherung dieser Messwerte.
+`available`/`complete` können weiterhin die letzte gute Bildkarte beschreiben,
+während `image_generated`/`failure_stage` den letzten Build beschreiben.
 
 RC.13 ergänzt ausschließlich privacy-safe RawMap-Refresh-Diagnose: begrenzte
 RAM-Zähler für Fresh-/Normalversuche, deren Ergebnisse und aktuelle
@@ -208,7 +216,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.13** herunterladen (nicht main).
+   **0.2.0-rc.14** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.
