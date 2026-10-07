@@ -1,7 +1,24 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.17. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.18. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC.18 — DVX34 fan-speed mapping
+
+Discovery accepts only target class `04z443`; no additional model abstraction
+is needed for the currently supported scope. RC.17 still used Quiet=1000,
+Normal=0, Max=1. Public hardware evidence from GitHub user `enzovic` on DVX34:
+1000 is rejected, 0 is Quiet, 1 is Strong, and 2 is Max. The contributor reports
+successful reading and writing of all three levels, without errors:
+[PR #1 hardware comment](https://github.com/seber89/yeedi-vac-max-home-assistant/pull/1#issuecomment-6031835236).
+
+Canonical mapping is now Quiet=0, Strong=1, Max=2 for both getSpeed readback and
+setSpeed writes. Unknown readback remains None. Home Assistant's fan-speed
+service accepts a string, so Normal is retained solely as an input alias for
+Strong/1 inside the entity method. It is absent from the canonical dictionary,
+fan_speed_list and readback. Synthetic regressions verify these behaviors;
+the repository owner has not independently hardware-tested this mapping.
+No changes to maps, positions, polling, room cleaning or command transport.
 
 ## RC.17 — observed docking edge across status paths
 
@@ -1081,7 +1098,9 @@ Der JavaScript-Snapshot ordnet `04z443` dem Yeedi-Profil und der nicht-V2-JSON-K
 | Reinigung / Laden | `getCleanInfo` / `getChargeState` |
 | Saugleistung | `getSpeed` / `setSpeed`, data.speed |
 
-Das aktuelle Modell erbt `vacuumBase`: Quiet=1000, Normal=0, Max=1 laut Wörterbuch. Max+ wird nicht angeboten. Diese Werte müssen trotzdem am Zielgerät getestet werden.
+Historischer Referenzbefund: `vacuumBase` verwendete Quiet=1000, Normal=0,
+Max=1. Diese Übernahme wurde durch den externen DVX34-Test widerlegt und in
+RC.18 durch Quiet=0, Strong=1, Max=2 ersetzt (siehe Abschnitt oben).
 
 Portalantwort und Geräteantwort werden getrennt geprüft. Eine erfolgreiche HTTP-Antwort allein reicht nicht. Direkte Bestätigung benötigt code=0; nur für unklare Ausgänge gilt alternativ die oben beschriebene Statusbestätigung. Status wird frisch gelesen, nie aus dem abgesendeten Befehl erfunden. Offline/Timeout-Codes 4200 und 500 stammen aus der Referenzimplementierung.
 

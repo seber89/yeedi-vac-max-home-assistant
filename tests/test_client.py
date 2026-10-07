@@ -116,10 +116,10 @@ async def test_snapshot_and_model_fan_speeds():
     c = client()
     c.command = AsyncMock(side_effect=[
         {"data": {"value": 72}}, {"data": {"state": "idle"}},
-        {"data": {"isCharging": 1}}, {"data": {"speed": 1000}},
+        {"data": {"isCharging": 1}}, {"data": {"speed": 0}},
     ])
     assert await c.snapshot(ROBOT) == {"online": True, "battery": 72, "activity": "docked", "fan_speed": "Quiet"}
-    assert FAN_SPEEDS == {"Quiet": 1000, "Normal": 0, "Max": 1}
+    assert FAN_SPEEDS == {"Quiet": 0, "Strong": 1, "Max": 2}
 
 
 async def test_cloud_error_is_distinct_from_offline():

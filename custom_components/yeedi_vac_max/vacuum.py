@@ -100,6 +100,9 @@ class YeediVacuum(YeediEntity, StateVacuumEntity):
         await self.coordinator.execute(self.robot, "charge", {"act": "go"})
 
     async def async_set_fan_speed(self, fan_speed, **kwargs):
+        # Input-only compatibility; canonical UI and readback remain Strong.
+        if fan_speed == "Normal":
+            fan_speed = "Strong"
         if fan_speed not in self.fan_speed_list:
             from homeassistant.exceptions import HomeAssistantError
             raise HomeAssistantError("Unsupported fan speed")

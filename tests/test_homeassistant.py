@@ -52,7 +52,7 @@ async def test_config_flow_auth_failure(hass):
 
 async def test_entities_and_control_payloads(hass):
     coordinator = SimpleNamespace(hass=hass, last_update_success=True,
-        data={"vac": {"online": True, "activity": "paused", "battery": 75, "fan_speed": "Normal"}},
+        data={"vac": {"online": True, "activity": "paused", "battery": 75, "fan_speed": "Strong"}},
         execute=AsyncMock(), rooms={}, async_contexts=lambda: [])
     robot = Robot("vac", "res", "Vac")
     vacuum = YeediVacuum(coordinator, robot)
@@ -71,7 +71,7 @@ async def test_entities_and_control_payloads(hass):
     coordinator.execute.assert_awaited_with(robot, "clean", {
         "act": "start", "type": "auto", "count": 1, "donotClean": 0, "router": "plan"})
     await vacuum.async_set_fan_speed("Max")
-    coordinator.execute.assert_awaited_with(robot, "setSpeed", {"speed": 1})
+    coordinator.execute.assert_awaited_with(robot, "setSpeed", {"speed": 2})
     with pytest.raises(HomeAssistantError):
         await vacuum.async_set_fan_speed("Max+")
     assert YeediBattery(coordinator, robot, "battery").native_value == 75

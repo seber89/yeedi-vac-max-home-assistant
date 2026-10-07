@@ -1,6 +1,13 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.17** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.18** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC.18 korrigiert ausschließlich die Saugleistungszuordnung anhand des externen
+DVX34-Hardwaretests von GitHub-Nutzer `enzovic`: Quiet=0, Strong=1, Max=2.
+Lesen und Schreiben verwenden dieselbe kanonische Tabelle. `Normal` bleibt nur
+als Legacy-Eingabealias für Strong (1) erhalten, nicht als UI-/Readback-Stufe.
+Karten-, Positions-, Raum- und Coordinator-Logik bleiben unverändert. Diese
+Zuordnung wurde nicht vom Repository-Besitzer selbst hardwaregetestet.
 
 RC.17 berücksichtigt bestätigte Activity auch aus dem Statusread nach Befehlen
 für die Docking-Erkennung. Eine dabei erkannte Docking-Kante wird einmal beim
@@ -208,7 +215,7 @@ Node-RED, n8n, Container oder zusätzlicher Dienst erforderlich.
 ## Funktionen und bestätigter Stand
 
 - Start / Fortsetzen, Pause, Stop und Rückkehr zur Ladestation.
-- Saugleistung Quiet / Normal / Max, sofern vom Gerät erfolgreich gelesen.
+- Saugleistung Quiet / Strong / Max, sofern vom Gerät erfolgreich gelesen.
 - Status, Akku und Verbindung; reguläre Aktualisierung etwa alle 60 Sekunden.
 - Native Home-Assistant-Raumreinigung für einen oder mehrere zugeordnete Räume.
 - Map Image Entity: Karte aus den Yeedi-MajorMap-/MinorMap-Daten,
@@ -237,7 +244,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.17** herunterladen (nicht main).
+   **0.2.0-rc.18** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.
