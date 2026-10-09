@@ -59,6 +59,14 @@ class RawRefreshProbe:
 
 @dataclass(repr=False)
 class SpatialState:
+    identity_checked: bool = False
+    verified_zero_builds: int = 0
+    map_identity_probe: dict = field(default_factory=lambda: {
+        'current_map_check_attempted': False, 'current_map_valid': False,
+        'current_map_matches_selected': False, 'cached_map_check_attempted': False,
+        'cached_map_valid': False, 'cached_selected_present': False,
+        'cached_selected_using': False, 'context_unchanged': False,
+        'current_result': 'never', 'cached_result': 'never'})
     raw_refresh_probe: RawRefreshProbe = field(default_factory=RawRefreshProbe)
     orientation_evidence: OrientationEvidence = field(default_factory=OrientationEvidence)
     maps: tuple[YeediMap, ...] = ()
@@ -143,6 +151,9 @@ class YeediCoordinator(DataUpdateCoordinator):
         for state in self.spatial.values():
             state.orientation_evidence.clear()
             state.raw_refresh_probe = RawRefreshProbe()
+            state.identity_checked = False
+            state.verified_zero_builds = 0
+            state.map_identity_probe = SpatialState().map_identity_probe
         await super().async_shutdown()
 
     async def async_load_saved_maps(self):
@@ -334,6 +345,12 @@ class YeediCoordinator(DataUpdateCoordinator):
             result = await self.client.load_raw_map(
                 robot, selected.map_id, None if fresh else state.raw_map, status)
             if (result is None and status.get('failure_stage') == 'no_visible_pixels'
+                    and status.get('major_valid') is True and status.get('generation_verified') is True
+                    and status.get('raster_assembled') is True and status.get('decode_failures_bucket') == '0'):
+                state.verified_zero_builds = min(2, state.verified_zero_builds + 1)
+                if state.verified_zero_builds == 2:
+                    await self._check_raw_map_identity(robot, selected)
+            if (result is None and status.get('failure_stage') == 'no_visible_pixels'
                     and status.get('major_valid') is True
                     and status.get('generation_verified') is True
                     and status.get('raster_assembled') is True
@@ -378,6 +395,49 @@ class YeediCoordinator(DataUpdateCoordinator):
             else:
                 state.raw_valid_until = min(state.raw_valid_until, now + MAP_ERROR_BACKOFF)
         self.async_update_listeners()
+
+    async def _check_raw_map_identity(self, robot, selected):
+        """One bounded read-only observation per setup; never change selected state."""
+        state = self.spatial[robot.did]
+        if state.identity_checked or not self.commands[robot.did].lock.locked():
+            return
+        def unchanged():
+            return state.metadata_valid and state.active_map is selected
+        if not unchanged():
+            return
+        state.identity_checked = True  # Includes failed reads; no retry on future polls.
+        probe = state.map_identity_probe
+        for kind in ('current', 'cached'):
+            if not unchanged():
+                probe[kind + '_result'] = 'map_changed'
+                break
+            probe[kind + '_map_check_attempted'] = True
+            try:
+                async with asyncio.timeout(8):
+                    if kind == 'current':
+                        mid = await self.client.current_yeedi_map_id(robot)
+                        if not isinstance(mid, str) or identifier(mid) != mid or mid == '0':
+                            raise CloudError('Invalid current identity')
+                        values = {'current_map_valid': True,
+                                  'current_map_matches_selected': mid == selected.map_id}
+                    else:
+                        present, using = await self.client.cached_map_identity(robot, selected.map_id)
+                        if type(present) is not bool or type(using) is not bool:
+                            raise CloudError('Invalid cached identity')
+                        values = {'cached_map_valid': True, 'cached_selected_present': present,
+                                  'cached_selected_using': using}
+                if not unchanged():
+                    probe[kind + '_result'] = 'map_changed'
+                    break
+                probe.update(values)
+                probe[kind + '_result'] = 'success'
+            except (CommandTimeout, TimeoutError):
+                probe[kind + '_result'] = 'timeout'
+            except CloudError:
+                probe[kind + '_result'] = 'cloud_error'
+            except Exception:
+                probe[kind + '_result'] = 'unexpected'
+        probe['context_unchanged'] = unchanged()
 
     async def _clean_log_fallback(self, robot, selected):
         state = self.spatial[robot.did]

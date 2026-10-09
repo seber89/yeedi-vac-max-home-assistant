@@ -86,7 +86,7 @@ def visibility_diagnostics(state):
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return {
-        "integration_version": "0.2.0-rc.18",
+        "integration_version": "0.2.0-rc.19",
         "last_update_success": bool(coordinator.last_update_success),
         "fast_position": [coordinator.fast_positions[robot.did].diagnostics() for robot in coordinator.robots],
         "raw_map": [raw_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
@@ -94,6 +94,7 @@ async def async_get_config_entry_diagnostics(hass, entry):
         "raw_refresh": [raw_refresh_diagnostics(coordinator.spatial[robot.did],
                         safe_activity(getattr(coordinator, '_map_activity', {}).get(robot.did))) for robot in coordinator.robots],
         "map_reactivation": [reactivation_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
+        "map_source_identity": [identity_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
         "clean_log_map": [clean_log_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
         "robots": [
             {
@@ -119,6 +120,19 @@ async def async_get_config_entry_diagnostics(hass, entry):
 def safe_activity(value):
     return value if type(value) is str and value in {
         'docked', 'returning', 'cleaning', 'paused', 'idle', 'error', 'unknown'} else 'unknown'
+
+
+def identity_diagnostics(state):
+    probe = state.map_identity_probe
+    result = {key: probe.get(key) is True for key in (
+        'current_map_check_attempted', 'current_map_valid', 'current_map_matches_selected',
+        'cached_map_check_attempted', 'cached_map_valid', 'cached_selected_present',
+        'cached_selected_using', 'context_unchanged')}
+    for key in ('current_result', 'cached_result'):
+        value = probe.get(key)
+        result[key] = value if type(value) is str and value in {
+            'never', 'success', 'timeout', 'cloud_error', 'map_changed', 'unexpected'} else 'unexpected'
+    return result
 
 
 def clean_log_diagnostics(state):

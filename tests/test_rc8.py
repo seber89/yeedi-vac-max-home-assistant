@@ -188,7 +188,8 @@ async def test_zero_build_one_readonly_fallback_no_store(coordinator):
     coordinator.client.clean_logs.assert_awaited_once()
     coordinator.client.clean_log_image.assert_awaited_once()
     coordinator.client.reactivate_map.assert_not_awaited()
-    coordinator.client.current_yeedi_map_id.assert_not_awaited()
+    # RC.19 adds one read-only identity observation after the second zero build.
+    coordinator.client.current_yeedi_map_id.assert_awaited_once()
     coordinator.map_storage.save.assert_not_awaited()
     image = YeediMapImage(coordinator,coordinator.robots[0])
     assert image.available and image.content_type == 'image/png'

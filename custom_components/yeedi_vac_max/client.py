@@ -418,6 +418,34 @@ class YeediClient:
         return (len(active) == 1 and type(active[0].get('mid')) is str
                 and active[0]['mid'] == map_id)
 
+    async def cached_map_identity(self, robot: Robot, map_id: str) -> tuple[bool, bool]:
+        """Strict cached presence/using observations, not map-selection authority."""
+        if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == '0':
+            raise CloudError('Invalid selected map')
+        body = await self.command(robot, 'getCachedMapInfo')
+        info = object_value(body.get('data')).get('info')
+        if not isinstance(info, list) or len(info) > 100:
+            raise CloudError('Invalid cached map identity')
+        seen = set()
+        selected_using = False
+        using_count = 0
+        for item in info:
+            if not isinstance(item, dict):
+                raise CloudError('Invalid cached map identity')
+            mid, using = item.get('mid'), item.get('using')
+            if (not isinstance(mid, str) or identifier(mid) != mid or mid == '0'
+                    or mid in seen or type(using) not in (int, str)
+                    or using not in (0, 1, '0', '1')):
+                raise CloudError('Invalid cached map identity')
+            seen.add(mid)
+            active = using in (1, '1')
+            using_count += active
+            if mid == map_id:
+                selected_using = active
+        if using_count > 1:
+            raise CloudError('Ambiguous cached map identity')
+        return map_id in seen, selected_using
+
     async def reactivate_map(self, robot: Robot, map_id: str) -> None:
         """One acknowledged write; caller must hold the coordinator command lock."""
         if not isinstance(map_id, str) or identifier(map_id) != map_id or map_id == '0':

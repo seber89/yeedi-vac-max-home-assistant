@@ -1,7 +1,57 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.18. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.19. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC.19 — source identity observations, no functional fix
+
+Owner hardware observations: repeated verified Major/Minor builds, nonempty
+encoded replies, exact-size successful decodes, but every decoded piece zero.
+Fresh docking and normal backoff retries occur; the last-good image remains.
+Earlier builds produced real nonzero geometry. This does not establish a server
+cause or stale ID. Synthetic tests distinguish identity, using and empty pixels.
+
+Code analysis: maps() first reads cached data.info, accepting exactly one active
+map upstream. The timeout fallback reads getMapState/getMajorMap and marks the
+returned validated Major mid active locally; it does NOT independently prove
+cached using. Major identity and the second generation read verify consistency
+within that transport, not independent current/using state. prepare_raw_map sends
+getMapInfo(mid, ol), discards its direct response and isolates failures. An ACK
+is not map geometry or proof of current using. getMapInfo_V2(type=0, no mid) is
+the existing strict Yeedi current-ID read. The RC.7 reactivation helper remains
+dormant since RC.8; no automatic caller, hence not_needed. Its bootstrap-only
+last-good guards were deliberate, not a proven missing write authorization.
+
+Rechecked pinned protocol references (facts only, no copied implementation):
+- [ecovacs-deebot.js map commands f1ae56e](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/commands/map.js):
+  getMapInfo(mid,type), Yeedi getMapInfo_V2(type=0), getCachedMapInfo and setMajorMap(mid).
+- [cached map metadata f1ae56e](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/managers/mapManager.js):
+  info entries distinguish known maps from using=1.
+- [MapInfo transport f1ae56e](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/ecovacsMessageDispatcher.js):
+  documents getMapInfo as a status response triggering subsequent onMapInfo events;
+  not proof that this device's direct response contains independent identity.
+- [DeebotUniverse cached command be8cbbd](https://github.com/DeebotUniverse/client.py/blob/be8cbbda9159e8b750efc4727eccf66ae5ff80bf/deebot_client/commands/json/map/cached_map_info.py):
+  independent command-name confirmation; existing async MapInfo research remains relevant.
+
+No mandatory synchronization read, guaranteed nonzero MinorMap result, or safe
+automatic write was established. RC.19 observes after two verified zero builds:
+once per robot/setup, under the existing device lock, current ID and cached
+presence/using, each with an outer eight-second budget. Existing safe read retries
+remain inside that budget. Failures consume the observation; no poll loop.
+Last-good presence does not gate it. Selected state must stay the same object
+with valid metadata through each read; otherwise discard that read's conclusions.
+Different IDs are reported only, never mixed or selected. Cached parsing is
+strict: bounded info list, unique valid string IDs, explicit int/string 0/1 using,
+at most one using map. Invalid/ambiguous replies provide no using evidence.
+All observations RAM-only, reset on unload; no IDs stored in the probe, no
+diagnostic I/O, no writes, no image/cache replacement. Boolean fields plus
+current_result/cached_result allow only never/success/timeout/cloud_error/
+map_changed/unexpected. No claim that active/current/using agree on hardware yet.
+
+Hardware: restart RC.19, leave docked until two normal zero-build attempts
+(the second is after the existing 180s backoff), save diagnostics. One normal
+cleaning run, return/dock without reload, save after fresh and first backoff retry.
+Do not repeat runs unless the observations require it.
 
 ## RC.18 — DVX34 fan-speed mapping
 

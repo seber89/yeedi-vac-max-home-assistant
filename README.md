@@ -1,6 +1,14 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.18** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.19** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC.19 ist ausschließlich RawMap-Source-/Identity-Diagnostik, kein Funktionsfix.
+Nach zwei vollständig verifizierten Null-Builds werden einmal pro Roboter/Setup
+getMapInfo_V2 und getCachedMapInfo mit je acht Sekunden Gesamtbudget gelesen.
+Auch ein vorhandener Last-Good-Fallback verhindert diese Prüfung nicht. Nur
+Booleans und feste Ergebniscodes werden exportiert; keine IDs oder Kartendaten.
+Keine Map-Auswahl, kein setMajorMap, keine neuen Tasks oder Polling-Schleifen.
+Fan-Speed, FastPosition, Overlay, Docking-Edge und Persistenz bleiben erhalten.
 
 RC.18 korrigiert ausschließlich die Saugleistungszuordnung anhand des externen
 DVX34-Hardwaretests von GitHub-Nutzer `enzovic`: Quiet=0, Strong=1, Max=2.
@@ -244,7 +252,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.18** herunterladen (nicht main).
+   **0.2.0-rc.19** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.
