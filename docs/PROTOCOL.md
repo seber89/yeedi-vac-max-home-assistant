@@ -3,6 +3,63 @@
 Stand: 0.2.0-rc.20. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
 
+## Post-RC.20 research decision — no RC.21 runtime change
+
+Owner hardware now confirms normal CachedMapInfo discovery timeout and
+major_fallback provenance. The independent Yeedi current-ID read matches the
+selected ID. Invalid cached evidence does not prove using=false. All incoming
+Minor payloads were nonempty and decodable but yielded zero rasters; earlier
+hardware builds through the same decoder produced visible geometry.
+
+The transport and Major/Minor-context investigation is recorded in
+[RESEARCH_MAP_CONTEXT.md](RESEARCH_MAP_CONTEXT.md). No additional field in the
+pinned Minor request schema establishes a required revision/CRC token. Our
+generation_verified flag establishes equality of parsed Major metadata before
+and after acquisition, NOT independent per-Minor revision authentication.
+Synthetic tests demonstrate both rejection of observable Major changes and
+the inability to distinguish undocumented Minor revisions with stable Major
+metadata. This is a protocol-evidence boundary, not a reproduced decoder bug.
+
+There is no existing onCachedMapInfo/onMapInfo receiver in this integration.
+No public evidence establishes an additional safe read-only using endpoint for
+this target or a causal using requirement after the current-ID match. Therefore
+further cached-only hardware experiments are not warranted by this research.
+No runtime change, version bump, request, write, timeout adjustment or new
+release is justified. A securely verified event transport or independently
+documented target-specific Minor context is needed before another acquisition
+experiment. No third-party implementation, fixture or real map was copied.
+
+### Later owner hardware confirmations (historical text preserved)
+
+The pending/not-yet-tested statements in the historical sections below describe
+their publication-time status. The following later observations supplement them;
+they do not retrospectively broaden the supported device scope beyond 04z443.
+
+- **RC.18 fan speed:** after enzovic's separate DVX34 read/write report, the
+  repository owner independently tested installed RC.18 through the Home
+  Assistant dashboard: Quiet -> Strong -> Max were all accepted correctly,
+  without a Command-Rejected error. This additionally confirms the owner's
+  hardware mapping, not other models or every readback scenario.
+  [Owner confirmation](https://github.com/seber89/yeedi-vac-max-home-assistant/pull/1#issuecomment-6041658813).
+- **RC.10 / RC.11 / RC.16:** the owner later confirmed FastPosition during
+  cleaning/returning and its stop after docking. A moving blue robot marker
+  during cleaning was observed in RC.11 and again with the RC.16 live-marker
+  improvement. This does not establish all dock-marker, orientation, missing-
+  position or SavedMap-only cases; historical pending statements remain below.
+- **RC.17 docking edge:** subsequent owner runs confirmed one fresh RawMap
+  attempt after returning/cleaning -> docked. The attempt can still fail with
+  no_visible_pixels; trigger confirmation is not acquisition-success proof.
+- **RC.19 / RC.20 identity:** owner diagnostics confirmed selected ID equals
+  the independently read Yeedi current ID. RC.20 additionally established that
+  normal CachedMapInfo discovery timed out and selected major_fallback; evidence
+  source was discovery, with no redundant direct cached probe. Cached validity
+  was false, so using remains UNKNOWN, not a confirmed using=false. Current-ID
+  match does not establish using or independently verify each Minor revision.
+
+These are owner-supplied hardware observations, distinct from the synthetic
+Boundary tests added after RC.20. No new runtime behavior or release results
+from documenting them.
+
 ## RC.20 — reuse normal CachedMapInfo evidence
 
 RC.19 owner hardware: current-ID read succeeded and matched; the optional
