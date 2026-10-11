@@ -1,7 +1,84 @@
 # Direkter Yeedi-Client: belegtes Protokoll und offene Live-Prüfung
 
-Stand: 0.2.0-rc.19. Ältere Abschnitte sind historische Entwicklungsbefunde,
+Stand: 0.2.0-rc.20. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
+
+## RC.20 — reuse normal CachedMapInfo evidence
+
+RC.19 owner hardware: current-ID read succeeded and matched; the optional
+cached read timed out. Its false using flag was NOT a successful using=false
+observation. RC.19 did not record whether primary discovery used cached data or
+its Major fallback; the hardware source cannot retrospectively be established.
+
+Actual wrapper semantics: maps() awaits a direct HTTP command response under
+40s outer budget. Each HTTP attempt has 15s total, at most two attempts and
+one 1s retry delay. Authentication/its lock and client request semaphore are
+also inside an outer caller budget. RC.19's 8s outer timeout includes those
+stages and cancels the inner operation; it does not add the retry budgets on
+top. The device lock is already held before _check_raw_map_identity starts,
+so waiting to acquire it is NOT included in that eight seconds. No internal
+device-lock reacquisition exists in command(). Normal primary CommandTimeout
+permits getMapState/getMajorMap fallback; an outer TimeoutError is propagated,
+not silently converted to that fallback. These behaviors remain unchanged.
+An eight-second optional read can expire before the normal HTTP timeout; this
+is a conservative observation budget, not proof of wrongly applied timing or
+of a server/event fault. We cannot safely distinguish authentication, semaphore
+wait, response wait or server causes from the existing public error alone.
+
+Cached reads: one command invocation per maps() (with normal safe HTTP retries),
+including initial spatial discovery, later metadata refreshes and existing
+room-command preflight. Same-map hourly caching normally avoids repeated
+discovery every minute. Other explicit map-data refreshes may call maps().
+RC.19 could additionally perform one optional cached invocation per setup after
+two verified zero builds. confirms_cached_map and dormant reactivation are not
+automatic production callers. FastPosition never calls CachedMapInfo.
+
+Pinned protocol facts rechecked, no third-party parser/dispatcher copied:
+- [DeebotUniverse getCachedMapInfo be8cbbd](https://github.com/DeebotUniverse/client.py/blob/be8cbbda9159e8b750efc4727eccf66ae5ff80bf/deebot_client/commands/json/map/cached_map_info.py)
+  and [onCachedMapInfo metadata](https://github.com/DeebotUniverse/client.py/blob/be8cbbda9159e8b750efc4727eccf66ae5ff80bf/deebot_client/messages/json/map/cached_map_info.py):
+  map list under data.info, mid and using=1; command replies and push messages
+  share metadata interpretation in that reference. This does not prove that
+  the target Yeedi always supplies a direct HTTP list.
+- [ecovacs-deebot.js dispatcher f1ae56e](https://github.com/mrbungle64/ecovacs-deebot.js/blob/f1ae56e69d409c5e02f72d4ea313024aa146363e/library/ecovacsMessageDispatcher.js):
+  classic getMapInfo direct status versus subsequent onMapInfo map events.
+  MapInfo_V2 Yeedi current-ID and Major transport facts remain as documented.
+Our runtime waits only for direct HTTPS responses, with no MQTT event listener.
+No async-event wait was added; no safe alternative is asserted from this evidence.
+
+Proven observation defect, not RawMap fix: successful maps() already retained
+active booleans but discarded trustworthy source provenance, causing a redundant
+optional cached read. RC.20 adds immutable RAM-only provenance to each existing
+map value. These fields are excluded from equality/lifecycle identity and repr.
+Whole-list strict evidence uses our existing independent RC.19 validator;
+selection behavior stays unchanged even where discovery historically tolerated
+an invalid entry. Duplicates still reject discovery; bool using, malformed IDs,
+multiple using maps and incomplete lists cannot produce strict using evidence.
+Known-but-nonusing and another using map remain distinguishable in valid lists.
+No map selection is altered based on the new observations.
+
+Source/evidence are bound to the returned map object and robot read. A normal
+failed refresh marks metadata invalid and diagnosis cannot reuse its old using
+claim. No private ID is added to exported data. Latest normal cached result is
+a fixed RAM-only code, cleared on unload/client close. Baseline diagnostics use
+the already-returned discovery evidence immediately, with no I/O. The RC.19
+once-only Current-ID comparison remains unchanged. When its selected map has
+known discovery provenance, it reuses success/invalid/timeout instead of sending
+a duplicate getCachedMapInfo. Unknown/legacy in-memory contexts retain RC.19's
+bounded one-shot direct probe; no new reads or retry loop.
+
+map_source_identity keeps its earlier booleans/codes; invalid_response is added
+as a distinct fixed cached result. New enums: selected_map_source = cached_using,
+cached_present, major_fallback, unknown; cached_evidence_source = discovery,
+direct_probe, none; cached_discovery_result = never, success, timeout,
+cloud_error, invalid_response, unexpected. direct_cached_probe_required is a
+boolean indicating lack of usable selected-context provenance, not a scheduled
+request. Using=false is meaningful only with cached_map_valid=true. Empty valid
+cached list is valid metadata without a selected/using map; timeout/invalid data
+is never that conclusion. No timestamps, raw contents, IDs, persistent data,
+new write, setMajorMap caller or MQTT/TLS changes.
+
+Hardware: install/restart RC.20, stay docked, wait 4–5 minutes and download
+diagnostics. No cleaning run needed to identify primary discovery provenance.
 
 ## RC.19 — source identity observations, no functional fix
 

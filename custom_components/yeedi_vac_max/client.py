@@ -178,6 +178,7 @@ class YeediClient:
         self.expires = 0.0
         self._auth_lock = asyncio.Lock()
         self._requests = asyncio.Semaphore(3)
+        self._discovery_results = {}  # Fixed codes only, latest existing read per robot.
 
     async def _request(self, method: str, url: str, *, retry: bool = False, **kwargs) -> dict:
         """Bound requests; no retries for writes or login, no raw exception logging."""
@@ -349,17 +350,33 @@ class YeediClient:
             raise
 
     async def maps(self, robot: Robot) -> tuple[YeediMap, ...]:
+        self._discovery_results[robot.did] = 'never'
         try:
             async with asyncio.timeout(MAP_REQUEST_TIMEOUT):
                 body = await self.command(robot, "getCachedMapInfo")
         except CommandTimeout:
+            self._discovery_results[robot.did] = 'timeout'
             candidate = await self.probe_legacy_maps(robot)
             if candidate is None:
                 raise CloudError("Legacy discovery returned no valid current map") from None
-            return (candidate,)
+            return (YeediMap(candidate.map_id, candidate.name, candidate.active,
+                             'major_fallback', 'timeout', False),)
+        except TimeoutError:
+            self._discovery_results[robot.did] = 'timeout'
+            raise
+        except CloudError:
+            self._discovery_results[robot.did] = 'cloud_error'
+            raise
         info = object_value(body.get("data")).get("info")
         if not isinstance(info, list) or len(info) > 100:
+            self._discovery_results[robot.did] = 'invalid_response'
             raise CloudError("Invalid map metadata")
+        try:
+            self._cached_identity(info, '')  # Validate whole list without selecting a map.
+            evidence_valid = True
+        except CloudError:
+            evidence_valid = False
+        self._discovery_results[robot.did] = 'success' if evidence_valid else 'invalid_response'
         result = {}
         for item in info:
             if not isinstance(item, dict):
@@ -368,11 +385,18 @@ class YeediClient:
             if mid is None or mid == "0":
                 continue
             if mid in result:
+                self._discovery_results[robot.did] = 'invalid_response'
                 raise CloudError("Ambiguous map metadata")
             name = item.get("name")
-            result[mid] = YeediMap(mid, name if isinstance(name, str) else None,
-                                   item.get("using") in (1, "1"))
+            active = item.get("using") in (1, "1")
+            result[mid] = YeediMap(mid, name if isinstance(name, str) else None, active,
+                ('cached_using' if active else 'cached_present') if evidence_valid else 'unknown',
+                self._discovery_results[robot.did], evidence_valid)
         return tuple(result.values())
+
+    def discovery_result(self, robot: Robot) -> str:
+        """Latest normal discovery outcome only, without I/O or map contents."""
+        return self._discovery_results.get(robot.did, 'never')
 
     async def probe_legacy_maps(self, robot: Robot) -> YeediMap | None:
         """Read legacy structure and return only the evidenced current map ID.
@@ -424,6 +448,11 @@ class YeediClient:
             raise CloudError('Invalid selected map')
         body = await self.command(robot, 'getCachedMapInfo')
         info = object_value(body.get('data')).get('info')
+        return self._cached_identity(info, map_id)
+
+    @staticmethod
+    def _cached_identity(info, map_id):
+        """Independent strict evidence validator; never changes discovery selection."""
         if not isinstance(info, list) or len(info) > 100:
             raise CloudError('Invalid cached map identity')
         seen = set()
@@ -651,3 +680,4 @@ class YeediClient:
         """Clear memory only; the shared aiohttp session belongs to HA."""
         self.token = self.password = ""
         self.expires = 0
+        self._discovery_results.clear()

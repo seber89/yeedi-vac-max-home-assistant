@@ -2,7 +2,7 @@
 
 These objects stay in memory only. Do not log their repr or expose diagnostics.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 import math
 import re
@@ -13,6 +13,10 @@ class YeediMap:
     map_id: str
     name: str | None
     active: bool
+    # RAM-only provenance, excluded from map/room lifecycle identity.
+    source: str = field(default='unknown', compare=False)
+    cached_result: str = field(default='never', compare=False)
+    cached_evidence_valid: bool = field(default=False, compare=False)
 
 
 @dataclass(frozen=True, repr=False)

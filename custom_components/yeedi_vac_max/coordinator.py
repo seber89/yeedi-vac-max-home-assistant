@@ -1,6 +1,6 @@
 """Central base/spatial state and serialized, never-retried device writes."""
 import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import timedelta
 import logging
 import time
@@ -59,6 +59,7 @@ class RawRefreshProbe:
 
 @dataclass(repr=False)
 class SpatialState:
+    normal_cached_result: str = 'never'
     identity_checked: bool = False
     verified_zero_builds: int = 0
     map_identity_probe: dict = field(default_factory=lambda: {
@@ -154,6 +155,12 @@ class YeediCoordinator(DataUpdateCoordinator):
             state.identity_checked = False
             state.verified_zero_builds = 0
             state.map_identity_probe = SpatialState().map_identity_probe
+            state.normal_cached_result = 'never'
+            state.maps = tuple(replace(item, source='unknown', cached_result='never',
+                cached_evidence_valid=False) for item in state.maps)
+            if state.active_map:
+                state.active_map = replace(state.active_map, source='unknown',
+                    cached_result='never', cached_evidence_valid=False)
         await super().async_shutdown()
 
     async def async_load_saved_maps(self):
@@ -289,8 +296,13 @@ class YeediCoordinator(DataUpdateCoordinator):
         state.rooms_valid = False
         self.async_update_listeners()
         try:
-            async with asyncio.timeout(MAP_DISCOVERY_TIMEOUT):
-                maps = await self.client.maps(robot)
+            try:
+                async with asyncio.timeout(MAP_DISCOVERY_TIMEOUT):
+                    maps = await self.client.maps(robot)
+            finally:
+                observations = getattr(self.client, '_discovery_results', {})
+                state.normal_cached_result = (observations.get(robot.did, 'never')
+                    if type(observations) is dict else 'never')
             active = [m for m in maps if m.active]
             selected = active[0] if len(active) == 1 else None
             if selected != state.active_map:
@@ -410,6 +422,14 @@ class YeediCoordinator(DataUpdateCoordinator):
         for kind in ('current', 'cached'):
             if not unchanged():
                 probe[kind + '_result'] = 'map_changed'
+                break
+            if kind == 'cached' and selected.cached_result != 'never':
+                # Reuse the SAME immutable discovery/map context; no duplicate request.
+                probe.update(cached_map_check_attempted=True,
+                    cached_map_valid=selected.cached_evidence_valid,
+                    cached_selected_present=selected.cached_evidence_valid,
+                    cached_selected_using=selected.cached_evidence_valid and selected.active,
+                    cached_result=selected.cached_result)
                 break
             probe[kind + '_map_check_attempted'] = True
             try:

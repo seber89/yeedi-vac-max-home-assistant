@@ -86,7 +86,7 @@ def visibility_diagnostics(state):
 async def async_get_config_entry_diagnostics(hass, entry):
     coordinator = entry.runtime_data
     return {
-        "integration_version": "0.2.0-rc.19",
+        "integration_version": "0.2.0-rc.20",
         "last_update_success": bool(coordinator.last_update_success),
         "fast_position": [coordinator.fast_positions[robot.did].diagnostics() for robot in coordinator.robots],
         "raw_map": [raw_diagnostics(coordinator.spatial[robot.did]) for robot in coordinator.robots],
@@ -131,7 +131,33 @@ def identity_diagnostics(state):
     for key in ('current_result', 'cached_result'):
         value = probe.get(key)
         result[key] = value if type(value) is str and value in {
-            'never', 'success', 'timeout', 'cloud_error', 'map_changed', 'unexpected'} else 'unexpected'
+            'never', 'success', 'timeout', 'cloud_error', 'map_changed', 'unexpected',
+            'invalid_response'} else 'unexpected'
+    selected = state.active_map if state.metadata_valid else None
+    known = selected is not None and type(selected.cached_result) is str and selected.cached_result in {
+        'success', 'timeout', 'invalid_response'}
+    result['selected_map_source'] = (selected.source if selected and selected.source in {
+        'cached_using', 'cached_present', 'major_fallback'} else 'unknown')
+    result['cached_evidence_source'] = 'discovery' if known else (
+        'direct_probe' if result['cached_map_check_attempted'] else 'none')
+    result['direct_cached_probe_required'] = not known
+    value = state.normal_cached_result
+    result['cached_discovery_result'] = value if type(value) is str and value in {
+        'never', 'success', 'timeout', 'cloud_error', 'invalid_response'} else 'unexpected'
+    if known:
+        result.update(cached_map_check_attempted=True,
+            cached_map_valid=selected.cached_evidence_valid is True,
+            cached_selected_present=selected.cached_evidence_valid is True,
+            cached_selected_using=selected.cached_evidence_valid is True and selected.active is True,
+            cached_result=selected.cached_result if selected.cached_result in {
+                'success', 'timeout', 'invalid_response'} else 'unexpected')
+    elif not state.metadata_valid:
+        result.update(cached_map_valid=False, cached_selected_present=False, cached_selected_using=False,
+            cached_evidence_source='none', selected_map_source='unknown')
+    elif selected is None and result['cached_discovery_result'] == 'success':
+        result.update(cached_map_check_attempted=True, cached_map_valid=True,
+            cached_selected_present=False, cached_selected_using=False, cached_result='success',
+            cached_evidence_source='discovery', direct_cached_probe_required=False)
     return result
 
 

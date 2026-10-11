@@ -1,6 +1,14 @@
 # Yeedi Vac Max für Home Assistant
 
-Version **0.2.0-rc.19** — Release Candidate für 0.2.0, noch keine Stable-Version.
+Version **0.2.0-rc.20** — Release Candidate für 0.2.0, noch keine Stable-Version.
+
+RC.20 bewahrt die Herkunft normaler Map-Discovery im RAM und verwendet vorhandene
+CachedMapInfo-/using-Evidenz für die Diagnose erneut. Bei bekanntem Discovery-
+Ergebnis entfällt der zusätzliche direkte Cached-Read aus RC.19. Ein MajorMap-
+Fallback beweist kein using; dessen Timeout-Herkunft wird nun sichtbar. Keine
+Timeout-Erhöhung, neue Reads, Writes oder Kartenreparatur. Current-ID-Check,
+Fan-Speed, FastPosition, Docking, Overlay und Last-Good bleiben unverändert.
+Hardwaretest: Neustart, angedockt lassen, nach 4–5 Minuten Diagnose sichern.
 
 RC.19 ist ausschließlich RawMap-Source-/Identity-Diagnostik, kein Funktionsfix.
 Nach zwei vollständig verifizierten Null-Builds werden einmal pro Roboter/Setup
@@ -252,7 +260,7 @@ Der RC benötigt noch seinen abschließenden Hardware-Smoke-Test.
 1. Dieses Repository als benutzerdefiniertes Repository der Kategorie Integration hinzufügen:
    https://github.com/seber89/yeedi-vac-max-home-assistant
 2. Pre-Releases/Beta-Versionen in HACS anzeigen lassen und gezielt
-   **0.2.0-rc.19** herunterladen (nicht main).
+   **0.2.0-rc.20** herunterladen (nicht main).
 3. Home Assistant vollständig neu starten.
 4. Unter Einstellungen → Geräte & Dienste → Integration hinzufügen
    **Yeedi Vac Max** auswählen.
