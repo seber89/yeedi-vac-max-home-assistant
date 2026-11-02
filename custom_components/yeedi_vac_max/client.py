@@ -19,7 +19,7 @@ import aiohttp
 
 from .clean_log_map import CleanLogError, latest_image_url, download_png
 
-from .const import TARGET_CLASS_ID
+from .const import DEFAULT_CLASS_ID, SUPPORTED_CLASS_IDS
 from .raw_map import RawMap, MapFormatError, MapChanged, parse_major, decode_piece, render_png, count_bucket
 from .raw_map import MapRenderError
 from .raw_map import safe_visibility, visibility_bucket
@@ -160,6 +160,7 @@ class Robot:
     did: str
     resource: str
     name: str
+    class_id: str = DEFAULT_CLASS_ID
 
 
 class YeediClient:
@@ -304,17 +305,22 @@ class YeediClient:
                 raise CloudError("Device list missing from Yeedi response")
             for item in response["devices"]:
                 item = object_value(item)
-                if item.get("class") != TARGET_CLASS_ID:
+                class_id = item.get("class")
+                if not isinstance(class_id, str) or class_id not in SUPPORTED_CLASS_IDS:
                     continue
                 did, resource = item.get("did"), item.get("resource")
                 if not isinstance(did, str) or not did or not isinstance(resource, str) or not resource:
                     raise CloudError("Vac Max device identifiers missing")
-                devices[did] = Robot(did, resource, str(item.get("nick") or "Yeedi Vac Max"))
+                if did in devices and devices[did].class_id != class_id:
+                    raise CloudError("Conflicting device class in discovery")
+                devices[did] = Robot(did, resource, str(item.get("nick") or "Yeedi Vac Max"), class_id)
         return list(devices.values())
 
     async def command(self, robot: Robot, name: str, data: dict | list | None = None,
                       *, writing: bool = False, retry: bool = True) -> dict:
         """Send a validated command without retaining response diagnostics."""
+        if not isinstance(robot.class_id, str) or robot.class_id not in SUPPORTED_CLASS_IDS:
+            raise CloudError("Unsupported device class")
         if name in (*LEGACY_COMMANDS, "getMapInfo", "getMinorMap", "getMapInfo_V2") and writing:
             raise ValueError("Legacy map probes are read-only")
         if name == 'setMajorMap' and not writing:
@@ -330,10 +336,10 @@ class YeediClient:
             raise CannotConnect("Authentication transport failed before command") from None
         response = await self._device_request(writing,
             "POST", PORTAL + "iot/devmanager.do", retry=retry and not writing and name not in LEGACY_COMMANDS,
-            params={"cv": "1.94.76", "t": "a", "av": "1.3.0", "mid": TARGET_CLASS_ID,
+            params={"cv": "1.94.76", "t": "a", "av": "1.3.0", "mid": robot.class_id,
                     "did": robot.did, "td": "q", "u": self.user_id},
             json={"cmdName": name, "payloadType": "j", "auth": self._auth(), "td": "q",
-                  "toId": robot.did, "toRes": robot.resource, "toType": TARGET_CLASS_ID,
+                  "toId": robot.did, "toRes": robot.resource, "toType": robot.class_id,
                   "payload": {"header": {"pri": "1", "ts": int(time.time()*1000),
                                          "tzm": 480, "ver": "0.0.50"},
                               "body": {"data": data or {}}}})
