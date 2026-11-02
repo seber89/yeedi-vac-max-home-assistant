@@ -2,6 +2,14 @@
 
 Version **0.2.0-rc.20** — Release Candidate für 0.2.0, noch keine Stable-Version.
 
+Unveröffentlichter Issue-#3-Fix: Discovery akzeptiert parallel `04z443` und
+`mnx7f4` und verwendet die jeweils gemeldete Klasse beim Befehlsrouting.
+`gombosattila76-byte` hat für sein DVX34 Vac Max + Vac Station Bundle (`mnx7f4`,
+DE, RC.20 mit manuell angepasster Klasse) Erkennung, Status, Akku, Start, Stop
+und Rückkehr zur Station bestätigt. Saugleistung, Raum-/Bereichsreinigung und
+vollständige RawMap sind für diese Klasse noch nicht hardwarebestätigt.
+Keine Änderung der Karten-/Steuerungsprotokolle und kein neuer Release.
+
 RC.20 bewahrt die Herkunft normaler Map-Discovery im RAM und verwendet vorhandene
 CachedMapInfo-/using-Evidenz für die Diagnose erneut. Bei bekanntem Discovery-
 Ergebnis entfällt der zusätzliche direkte Cached-Read aus RC.19. Ein MajorMap-
@@ -238,8 +246,9 @@ Node-RED, n8n, Container oder zusätzlicher Dienst erforderlich.
   mit Crop, Rand und begrenzter pixelgenauer Vergrößerung.
 - Kartenanzeige funktioniert unabhängig von Raum-Polygonen und Roboterposition.
 
-Zielgerät: Yeedi Vac Max DVX34 / K781, Geräteklasse 04z443, Region DE.
-Andere Länder und Geräteklassen werden nicht angeboten.
+Zielgerät: Yeedi Vac Max DVX34 / K781, Geräteklassen 04z443 und mnx7f4, Region DE.
+Andere Länder und Geräteklassen werden nicht angeboten. Der neue mnx7f4-Scope
+hat bislang nur die oben aufgeführte Teilvalidierung aus Issue #3.
 Geprüfte Home-Assistant-Version und HACS-Mindestversion: **2026.9.2**.
 
 Der Besitzer hat mit Beta 6.4 die sichtbare, lesbare und aktualisierte Karte,

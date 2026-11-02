@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Yeedi-Konto verbinden",
-        "description": "Experimentell 0.1.0: direkter Yeedi-Login für Vac Max 04z443. Die Yeedi-App bleibt nutzbar. Derzeit nur DE. Zugangsdaten werden in Home Assistant gespeichert; die Gerätefunktion muss noch live getestet werden.",
+        "description": "Direkter Yeedi-Login für Vac Max (04z443 / mnx7f4). Die Yeedi-App bleibt nutzbar. Derzeit nur DE. Zugangsdaten werden in Home Assistant gespeichert; unterstützte Funktionen hängen von der Hardwarevalidierung ab.",
         "data": {
           "username": "Yeedi-Konto / E-Mail",
           "password": "Yeedi-Passwort",
@@ -14,7 +14,7 @@
     "error": {
       "invalid_auth": "Yeedi hat Konto oder Passwort abgelehnt.",
       "cannot_connect": "Yeedi ist nicht erreichbar. Bitte kurz warten und erneut versuchen.",
-      "no_devices": "Kein Yeedi Vac Max (04z443) in diesem Konto gefunden.",
+      "no_devices": "Kein unterstützter Yeedi Vac Max (04z443 / mnx7f4) in diesem Konto gefunden.",
       "unsupported_country": "Diese experimentelle Version unterstützt derzeit nur DE.",
       "verification_required": "Yeedi verlangt eine zusätzliche Geräteverifizierung. Dieser Ablauf ist noch nicht implementiert. Prüfe die Yeedi-App und melde den Fehler ohne Zugangsdaten.",
       "unknown": "Unerwartete Antwort der Yeedi-API. Siehe bereinigte Home-Assistant-Protokolle."

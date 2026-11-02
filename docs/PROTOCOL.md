@@ -3,6 +3,29 @@
 Stand: 0.2.0-rc.20. Ältere Abschnitte sind historische Entwicklungsbefunde,
 keine Beschreibung des aktuellen Runtime-Verhaltens.
 
+## Unreleased Issue #3 — parallel device classes
+
+The earlier 04z443-only statements below describe the historical scope.
+Public contributor hardware evidence supersedes that restriction for discovery:
+[gombosattila76-byte's test](https://github.com/seber89/yeedi-vac-max-home-assistant/issues/3#issuecomment-6562953299)
+reports a DVX34 Vac Max + Vac Station bundle as mnx7f4. With RC.20 and only the
+global class constant manually changed, DE discovery, status, battery, start,
+stop and return-to-dock worked. Fan speed, room/area cleaning and complete
+RawMap operation remain untested for that class. This is contributor evidence,
+not a reproduction by the repository owner or a claim about other models.
+
+An explicit immutable supported-class set now accepts 04z443 and mnx7f4.
+Each discovered Robot retains its reported class in RAM; device-manager query
+mid and envelope toType use that Robot's class. This query mid is a DEVICE
+CLASS, not the map-ID mid inside map command data. Three-argument Robot callers
+default to 04z443 for compatibility. Unsupported classes are filtered, conflicting
+classes for one discovered device are rejected without exposing identifiers.
+No payload profile, endpoint, authentication, retries, locks or map algorithm
+is changed; a mixed account cannot send every command to one global class.
+No raw discovery logging is added. Existing diagnostics/privacy remain intact.
+The independent synthetic discovery/routing regressions do not hardware-confirm
+the new build or its untested features. Version remains RC.20; no release.
+
 ## Post-RC.20 research decision — no RC.21 runtime change
 
 Owner hardware now confirms normal CachedMapInfo discovery timeout and
